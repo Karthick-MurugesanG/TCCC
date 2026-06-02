@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+  <section id="kpiGrid" class="kpi-grid"></section>
+
+  <section class="analysis-grid">
+    <div class="surface">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Brand performance</p>
+          <h3>Value and volume share</h3>
+        </div>
+        <span id="periodBadge" class="badge"></span>
+      </div>
+      <div id="brandCards" class="brand-grid"></div>
+    </div>
+
+    <div class="surface">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Month filter</p>
+          <h3 id="trendTitle">Monthly trend</h3>
+        </div>
+      </div>
+      <div id="monthCards" class="month-grid"></div>
+      <div id="monthTrend" class="trend-box"></div>
+      <div id="monthLegend" class="legend"></div>
+    </div>
+  </section>
+
+  <section class="surface">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Channel drilldown</p>
+        <h3>Static channel tabs, dynamic metrics</h3>
+      </div>
+      <div id="breadcrumb" class="path-chips compact"></div>
+    </div>
+    <div id="channelCards" class="channel-tabs"></div>
+  </section>
+
+  <section class="detail-grid">
+    <div class="surface">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Customer analysis</p>
+          <h3 id="customerTitle">Customers</h3>
+        </div>
+      </div>
+      <div id="customerCards" class="row-list"></div>
+    </div>
+
+    <div class="surface">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Regional analysis</p>
+          <h3 id="regionTitle">Regions</h3>
+        </div>
+      </div>
+      <div id="regionCards" class="row-list"></div>
+    </div>
+  </section>
+
+  <section class="surface root-panel">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Root cause</p>
+        <h3 id="rootTitle">Drivers, draggers, actions</h3>
+      </div>
+      <span id="rootCauseChip" class="badge badge-red"></span>
+    </div>
+    <div id="rootCauseSummary" class="root-summary"></div>
+    <div id="rootCauseMetrics" class="metric-grid"></div>
+    <div class="root-grid">
+      <div>
+        <h4>Reasons</h4>
+        <div id="rootCauseReasons" class="row-list"></div>
+      </div>
+      <div>
+        <h4>Drivers</h4>
+        <div id="rootCauseDrivers" class="row-list"></div>
+      </div>
+      <div>
+        <h4>Recommended actions</h4>
+        <div id="rootCauseActions" class="row-list"></div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

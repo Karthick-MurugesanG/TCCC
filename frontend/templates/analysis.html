@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="surface analysis-hub">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Analysis hub</p>
+        <h3>Choose a drilldown</h3>
+      </div>
+      <span class="badge">Customer, region, and channel views</span>
+    </div>
+
+    <div class="analysis-launcher">
+      <a class="launch-card" href="{{ request.url_for('page_customer_analysis') }}">
+        <strong>Customer Analysis</strong>
+        <span>Move from brand-level performance into customer-level pockets.</span>
+      </a>
+      <a class="launch-card" href="{{ request.url_for('page_regional_analysis') }}">
+        <strong>Regional Analysis</strong>
+        <span>Inspect the regional mix for the selected customer and channel.</span>
+      </a>
+      <a class="launch-card" href="{{ request.url_for('page_channels') }}">
+        <strong>Channels</strong>
+        <span>Open the TEG channel page to trace share loss from customer to region to root cause.</span>
+      </a>
+    </div>
+  </section>
+{% endblock %}

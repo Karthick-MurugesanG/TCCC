@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="ask-layout">
+    <div class="surface ask-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Ask Gemini</p>
+          <h3>Ask the workbook directly</h3>
+        </div>
+        <span class="badge">Prompt only</span>
+      </div>
+
+      <div id="breadcrumb" class="path-chips compact"></div>
+
+      <form id="nlForm" class="ask-form">
+        <label for="nlInput">Your question</label>
+        <textarea
+          id="nlInput"
+          rows="8"
+          placeholder="Ask about any brand, month, customer, region, or channel. The reply follows your question, not the filters."
+        ></textarea>
+        <div class="ask-form-actions">
+          <button type="submit">Ask Gemini</button>
+          <span class="ask-note">The request is sent only when you press the button. Header filters are disabled here.</span>
+        </div>
+      </form>
+    </div>
+
+    <div class="surface ask-panel ask-answer-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Response</p>
+          <h3>AI summary</h3>
+        </div>
+        <span class="badge badge-red">AI assistant</span>
+      </div>
+      <div id="nlAnswer" class="copilot-answer ask-answer"></div>
+      <div class="ask-hints">
+        <span class="ask-hint">Mention the brand you want to focus on</span>
+        <span class="ask-hint">Ask for draggers, drivers, and actions</span>
+        <span class="ask-hint">Header filters do not affect this tab</span>
+      </div>
+    </div>
+  </section>
+{% endblock %}

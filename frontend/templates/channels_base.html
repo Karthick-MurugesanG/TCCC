@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="surface channel-hero">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Channel drilldown</p>
+        <h3 id="channelHeroTitle">{{ channel_label or "TEG" }} share drilldown</h3>
+      </div>
+      <span class="badge">{{ channel_title or "Channel detail" }}</span>
+    </div>
+
+    <div class="channel-hero-body">
+      <div class="channel-summary-panel">
+        <p class="channel-summary-kicker">{{ channel_label or "TEG" }} focus</p>
+        <p class="channel-summary-note">{{ channel_description or "Detailed channel performance, share, and revenue." }}</p>
+        <p class="channel-summary-note">Use the customer list below to find where the share move is concentrated, then click into regions to check whether the drag is coming from distribution, pricing, or competition.</p>
+        <p id="channelHeroSummary" class="channel-summary-text"></p>
+      </div>
+
+      <div id="channelHeroMetrics" class="metric-grid channel-metric-grid"></div>
+    </div>
+
+    <div id="breadcrumb" class="path-chips compact"></div>
+  </section>
+
+  <section class="surface analysis-hub">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Drilldown path</p>
+        <h3>Trace the drop from channel to reason</h3>
+      </div>
+      <span class="badge">Channel → customer → region → root cause</span>
+    </div>
+
+    <div class="analysis-launcher">
+      <article class="launch-card">
+        <strong>1. Channel</strong>
+        <span>{{ channel_label or "TEG" }} opens with the highest-value customer pockets so you can see where the move is concentrated.</span>
+      </article>
+      <article class="launch-card">
+        <strong>2. Customer</strong>
+        <span>Click a customer such as Shoprite, Woolworths, or Pick n Pay to isolate the account where share is slipping.</span>
+      </article>
+      <article class="launch-card">
+        <strong>3. Region</strong>
+        <span>Click a region like Gauteng, KZN, or WC to see whether the issue is distribution, price, or competitor pressure.</span>
+      </article>
+    </div>
+  </section>
+
+  <section class="detail-grid channel-detail-grid">
+    <div class="surface">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Customer analysis</p>
+          <h3 id="customerTitle">Customers driving the move</h3>
+        </div>
+        <span class="badge">Click a customer</span>
+      </div>
+      <div id="customerCards" class="row-list"></div>
+    </div>
+
+    <div class="surface">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Regional analysis</p>
+          <h3 id="regionTitle">Regions behind the drop</h3>
+        </div>
+        <span class="badge">Click a region</span>
+      </div>
+      <div id="regionCards" class="row-list"></div>
+    </div>
+  </section>
+
+  <section class="surface root-panel channel-root-panel">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Root cause</p>
+        <h3 id="rootTitle">Why is the share moving?</h3>
+      </div>
+      <span id="rootCauseChip" class="badge badge-red"></span>
+    </div>
+    <div id="rootCauseSummary" class="root-summary"></div>
+    <div id="rootCauseMetrics" class="metric-grid"></div>
+    <div class="root-grid">
+      <div>
+        <h4>Reasons</h4>
+        <div id="rootCauseReasons" class="row-list"></div>
+      </div>
+      <div>
+        <h4>Drivers</h4>
+        <div id="rootCauseDrivers" class="row-list"></div>
+      </div>
+      <div>
+        <h4>Recommended actions</h4>
+        <div id="rootCauseActions" class="row-list"></div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

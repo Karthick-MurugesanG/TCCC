@@ -1,0 +1,86 @@
+{
+  "name": "TCCC Sales Data Jan2025-Apr2026",
+  "default": false,
+  "kind": "excel",
+  "uri": "TCCC_Sales_Data_Jan2025_Apr2026.xlsx",
+  "sheet": "TCCC_Sales_Data",
+  "country": "South Africa",
+  "column_aliases": {
+    "Brand": [
+      "Brand"
+    ],
+    "Period": [
+      "Periods"
+    ],
+    "Category": [
+      "Category"
+    ],
+    "Customer": [
+      "Retailer Banner"
+    ],
+    "Region": [
+      "Region"
+    ],
+    "SalesValue": [
+      "Sales Value"
+    ],
+    "SalesVolume": [
+      "Sales Unit Cases"
+    ],
+    "Distribution": [
+      "Numeric Distribution"
+    ],
+    "Price": [
+      "Price per Sales Unit"
+    ],
+    "PricePerCase": [
+      "Price per Sales Unit Cases"
+    ],
+    "ProvidedValueShare": [
+      "Share of Sales Value - Product"
+    ],
+    "ProvidedVolumeShare": [
+      "Share of Sales Unit Cases - Product"
+    ]
+  },
+  "customer_channel_map": {
+    "Reliance Retail": "Modern Trade",
+    "DMart": "Modern Trade",
+    "More": "Modern Trade",
+    "Spencer's": "Modern Trade",
+    "Big Bazaar": "Modern Trade"
+  },
+  "portfolio_brands": [
+    "Coca-Cola",
+    "Sprite",
+    "Fanta",
+    "Minute Maid",
+    "Kinley",
+    "Monster"
+  ],
+  "categories": [
+    "Carbonated Soft Drinks",
+    "Juice",
+    "Water",
+    "Energy Drink"
+  ],
+  "regions": [
+    "North",
+    "South",
+    "East",
+    "West"
+  ],
+  "period_range": {
+    "start": "Jan-2025",
+    "end": "Apr-2026"
+  },
+  "metrics": {
+    "value_share": "Share of Sales Value - Product",
+    "volume_share": "Share of Sales Unit Cases - Product",
+    "distribution": "Numeric Distribution",
+    "price_per_case": "Price per Sales Unit Cases",
+    "price_per_unit": "Price per Sales Unit",
+    "sales_value": "Sales Value",
+    "sales_volume": "Sales Unit Cases"
+  }
+}

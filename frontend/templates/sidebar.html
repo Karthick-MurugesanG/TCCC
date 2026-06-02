@@ -1,0 +1,36 @@
+<aside class="brand-rail" id="brandRail">
+  <div class="brand-rail-top">
+    <div class="brand-lockup">
+      <div class="brand-disc">TCCC</div>
+      <div class="brand-lockup-copy">
+        <p>{{ bootstrap.country or "Market" }}</p>
+        <h1>Market Share Analytics</h1>
+      </div>
+    </div>
+
+    <div class="sidebar-controls" aria-label="Sidebar controls">
+      <button type="button" id="sidebarCollapse" class="rail-toggle" aria-label="Collapse sidebar">&lt;</button>
+      <button type="button" id="sidebarPin" class="rail-toggle" aria-label="Pin sidebar open">&gt;</button>
+    </div>
+  </div>
+
+  <div class="rail-group">
+    <label for="brandSelect">Brand</label>
+    <select id="brandSelect"></select>
+  </div>
+  <div class="rail-grid">
+    <div class="rail-group">
+      <label for="yearSelect">Year</label>
+      <select id="yearSelect"></select>
+    </div>
+    <div class="rail-group">
+      <label for="periodSelect">Month</label>
+      <select id="periodSelect"></select>
+    </div>
+  </div>
+
+  <div class="rail-section">
+    <span class="rail-label">Current cut</span>
+    <div id="breadcrumbSidebar" class="path-chips"></div>
+  </div>
+</aside>

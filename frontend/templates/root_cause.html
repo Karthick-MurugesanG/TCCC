@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="surface root-panel">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Root cause</p>
+        <h3 id="rootTitle">Drivers, draggers, actions</h3>
+      </div>
+      <span id="rootCauseChip" class="badge badge-red"></span>
+    </div>
+    <div id="rootCauseSummary" class="root-summary"></div>
+    <div id="rootCauseMetrics" class="metric-grid"></div>
+    <div class="root-grid">
+      <div>
+        <h4>Reasons</h4>
+        <div id="rootCauseReasons" class="row-list"></div>
+      </div>
+      <div>
+        <h4>Drivers</h4>
+        <div id="rootCauseDrivers" class="row-list"></div>
+      </div>
+      <div>
+        <h4>Recommended actions</h4>
+        <div id="rootCauseActions" class="row-list"></div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

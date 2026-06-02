@@ -1,0 +1,107 @@
+{
+  "name": "TCCC workbook",
+  "default": true,
+  "kind": "excel",
+  "uri": "SSD Category - Dummy Data.xlsx",
+  "sheet": "1-Table-1",
+  "country": "South Africa",
+  "column_aliases": {
+    "Brand": [
+      "Brand",
+      "BRAND"
+    ],
+    "Period": [
+      "Period",
+      "Periods"
+    ],
+    "Category": [
+      "Category",
+      "CATEGORY"
+    ],
+    "Customer": [
+      "Customer",
+      "Retailer Banner"
+    ],
+    "Region": [
+      "Region"
+    ],
+    "SalesValue": [
+      "SalesValue",
+      "Sales Value"
+    ],
+    "SalesVolume": [
+      "SalesVolume",
+      "Sales Unit Cases"
+    ],
+    "Distribution": [
+      "Distribution",
+      "Numeric Distribution"
+    ],
+    "Price": [
+      "Price",
+      "Price per Sales Unit"
+    ],
+    "PricePerCase": [
+      "PricePerCase",
+      "Price per Sales Unit Cases"
+    ],
+    "ProvidedValueShare": [
+      "ProvidedValueShare",
+      "Share of Sales Value - Product"
+    ],
+    "ProvidedVolumeShare": [
+      "ProvidedVolumeShare",
+      "Share of Sales - Sales Unit Cases - Product",
+      "Share of Sales Unit Cases - Product"
+    ]
+  },
+  "customer_channel_map": {
+    "Checker Hyper": "TEG",
+    "Checkers": "TEG",
+    "Checkers Foods": "TEG",
+    "Friendly": "TEG",
+    "Game": "TEG",
+    "OK Foods": "TEG",
+    "OK Minimark": "TEG",
+    "PnP Family": "TEG",
+    "PnP Hyper": "TEG",
+    "PnP Super": "TEG",
+    "Savemor Census": "TEG",
+    "Shoprite": "TEG",
+    "Shoprite Hyper": "TEG",
+    "Spar Census": "TEG",
+    "Superspar Census": "TEG",
+    "U Save": "TEG",
+    "Woolworths": "TEG",
+    "Clicks": "PFM",
+    "Clicks Baby": "PFM",
+    "Kwikspar Census": "PFM",
+    "MediRite Plus": "PFM",
+    "OK Buying Partner": "PFM",
+    "OK Express": "PFM",
+    "OK Urban": "PFM",
+    "PnP Express": "PFM",
+    "PnP Mini": "PFM",
+    "Shoprite Mini": "PFM",
+    "SparExpress Census": "PFM",
+    "Checkers Little Me": "PFM",
+    "Checkers Liquor": "L&T",
+    "OK Liquor": "L&T",
+    "SavemorLiquor Census": "L&T",
+    "Shoprite Liquor": "L&T",
+    "Tops Census": "L&T",
+    "Checkers Outdoor": "HORECA",
+    "FoodWorld": "HORECA"
+  },
+  "portfolio_brands": [
+    "COCA-COLA",
+    "FANTA",
+    "SPRITE",
+    "STONEY",
+    "SCHWEPPES",
+    "SPARLETTA",
+    "TWIST",
+    "TWIZZA",
+    "BONAQUA"
+  ]
+}

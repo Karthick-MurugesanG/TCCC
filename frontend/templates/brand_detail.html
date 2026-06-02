@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="ask-layout">
+    <div class="surface ask-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Brand performance detail</p>
+          <h3>{{ selections.brand_label or "Brand detail" }}</h3>
+        </div>
+        <a class="header-pill" href="{{ back_href }}">Back to brand performance</a>
+      </div>
+
+      <div id="breadcrumb" class="path-chips compact">
+        <span>{{ selections.brand_label or "Brand" }}</span>
+        <span>{{ selections.period_label or "All Months" }}</span>
+        <span>{{ selections.channel_label or "TEG" }}</span>
+        {% if selections.customer %}<span>{{ selections.customer }}</span>{% endif %}
+        {% if selections.region %}<span>{{ selections.region }}</span>{% endif %}
+      </div>
+
+      <div class="root-summary">{{ analysis.summary }}</div>
+      {% if analysis.root_cause %}
+        <div class="root-summary">{{ analysis.root_cause }}</div>
+      {% endif %}
+
+      <div id="kpiGrid" class="kpi-grid">
+        <article class="kpi-card">
+          <span>Brand value share</span>
+          <strong>{{ "%.2f"|format(portfolio.brand_value_share_pct) }}%</strong>
+          <small>{{ selections.period_label or "Selected period" }}</small>
+        </article>
+        <article class="kpi-card">
+          <span>Brand volume share</span>
+          <strong>{{ "%.2f"|format(portfolio.brand_volume_share_pct) }}%</strong>
+          <small>{{ selections.brand_label or "Selected brand" }}</small>
+        </article>
+        <article class="kpi-card">
+          <span>Growth</span>
+          <strong>{{ "%+.2f"|format(portfolio.brand_growth_pct) }}%</strong>
+          <small>vs previous period</small>
+        </article>
+        <article class="kpi-card">
+          <span>Market size</span>
+          <strong>R{{ "%.2f"|format(portfolio.market_size_value) }}</strong>
+          <small>category sales value</small>
+        </article>
+        <article class="kpi-card">
+          <span>Brand rank</span>
+          <strong>{{ "#" ~ portfolio.selected_brand_rank if portfolio.selected_brand_rank else "-" }}</strong>
+          <small>within the selected period</small>
+        </article>
+      </div>
+    </div>
+
+    <div class="surface ask-panel ask-answer-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">AI assistant</p>
+          <h3>Generated narrative</h3>
+        </div>
+        <span class="badge badge-red">Gemini</span>
+      </div>
+      <div class="copilot-answer ask-answer brand-detail-answer">{{ analysis.pandasai_answer or "Gemini did not return a narrative for this brand detail." }}</div>
+      {% if analysis.ai_status and not analysis.ai_status.gemini_configured %}
+        <div class="ask-note">Gemini key not configured, so this page uses workbook analytics only.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="surface analysis-hub">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Executive narrative</p>
+        <h3>Draggers, drivers, and actions</h3>
+      </div>
+      <span class="badge">Brand-specific cut</span>
+    </div>
+
+    <div class="root-grid">
+      <div>
+        <h4>Draggers</h4>
+        <div class="row-list">
+          {% for item in analysis.draggers %}
+            <article class="insight">
+              <strong>{{ loop.index }}. {{ item }}</strong>
+              <small>Weakest signals in the selected cut.</small>
+            </article>
+          {% else %}
+            <div class="empty-state">No draggers were identified for this cut.</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <h4>Drivers</h4>
+        <div class="row-list">
+          {% for item in analysis.drivers %}
+            <article class="insight">
+              <strong>{{ loop.index }}. {{ item }}</strong>
+              <small>Positive signals in the selected cut.</small>
+            </article>
+          {% else %}
+            <div class="empty-state">No drivers were identified for this cut.</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <h4>Recommended actions</h4>
+        <div class="row-list">
+          {% for item in analysis.actions %}
+            <article class="insight">
+              <strong>{{ loop.index }}. {{ item.label }}</strong>
+              <small>{{ item.detail }}</small>
+            </article>
+          {% else %}
+            <div class="empty-state">No recommended actions are available for this cut.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="detail-grid">
+    <div class="surface">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Customer analysis</p>
+          <h3 id="customerTitle">{{ selections.channel_label or "Channel" }} customers</h3>
+        </div>
+        <span class="badge">Click a customer</span>
+      </div>
+      <div id="customerCards" class="row-list">
+        {% for row in customers %}
+          <button type="button" class="data-row {% if row.name == selections.customer %}active{% endif %}" data-customer="{{ row.name }}">
+            <span>
+              <strong>{{ row.name }}</strong>
+              <small>Value share: {{ "%.2f"|format(row.value_share) }}% / Growth: {{ "%+.2f"|format(row.growth) }}%</small>
+            </span>
+            <span>
+              <b>R{{ "%.2f"|format(row.revenue) }}</b>
+              <small>Volume {{ "{:,}".format(row.volume) }}</small>
+            </span>
+          </button>
+        {% else %}
+          <div class="empty-state">No customer rows for this cut.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Regional analysis</p>
+          <h3 id="regionTitle">{{ selections.customer or "Selected customer" }} regions</h3>
+        </div>
+        <span class="badge">Click a region</span>
+      </div>
+      <div id="regionCards" class="row-list">
+        {% for row in regions %}
+          <button type="button" class="data-row {% if row.name == selections.region %}active{% endif %}" data-region="{{ row.name }}">
+            <span>
+              <strong>{{ row.name }}</strong>
+              <small>Share: {{ "%.2f"|format(row.market_share) }}% / Growth: {{ "%+.2f"|format(row.growth) }}%</small>
+            </span>
+            <span>
+              <b>R{{ "%.2f"|format(row.revenue) }}</b>
+              <small>Distribution {{ "%.2f"|format(row.distribution) }}%</small>
+            </span>
+          </button>
+        {% else %}
+          <div class="empty-state">No regional rows for this cut.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="surface root-panel">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Root cause</p>
+        <h3 id="rootTitle">{{ selections.region or "Region" }} root cause</h3>
+      </div>
+      <span id="rootCauseChip" class="badge badge-red">{{ selections.channel_label or "TEG" }} / {{ selections.customer or "-" }} / {{ selections.region or "-" }}</span>
+    </div>
+    <div id="rootCauseSummary" class="root-summary">{{ root_cause.summary or "Select a customer and region to generate the root-cause view." }}</div>
+    <div id="rootCauseMetrics" class="metric-grid">
+      {% for metric in root_cause.metrics or [] %}
+        <article class="metric-card">
+          <span>{{ metric.label }}</span>
+          <strong>{{ metric.current }}</strong>
+          <small>{{ metric.delta }} vs {{ metric.previous }}</small>
+        </article>
+      {% endfor %}
+    </div>
+    <div class="root-grid">
+      <div>
+        <h4>Reasons</h4>
+        <div id="rootCauseReasons" class="row-list">
+          {% for reason in root_cause.reasons or [] %}
+            <article class="insight">
+              <strong>{{ reason.label }}</strong>
+              <small>{{ reason.detail }}</small>
+            </article>
+          {% else %}
+            <div class="empty-state">No reasons identified for this cut.</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <h4>Drivers</h4>
+        <div id="rootCauseDrivers" class="row-list">
+          {% for driver in root_cause.drivers or [] %}
+            <article class="insight">
+              <strong>{{ driver.label }}</strong>
+              <small>{{ driver.detail }}</small>
+            </article>
+          {% else %}
+            <div class="empty-state">No drivers identified for this cut.</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <h4>Recommended actions</h4>
+        <div id="rootCauseActions" class="row-list">
+          {% for action in root_cause.actions or [] %}
+            <article class="insight">
+              <strong>{{ action.label }}</strong>
+              <small>{{ action.detail }}</small>
+            </article>
+          {% else %}
+            <div class="empty-state">No actions are available for this cut.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

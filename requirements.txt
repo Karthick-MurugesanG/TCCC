@@ -1,0 +1,9 @@
+pandasai
+pandasai-litellm
+botocore
+pandas
+SmartDataframe
+fastapi
+python-multipart
+uvicorn
+starlette>=1.2.1
