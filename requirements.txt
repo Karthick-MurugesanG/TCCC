@@ -8,5 +8,3 @@ uvicorn
 openpyxl
 setuptools
 wheel
-duckdb==1.0.0
-pillow

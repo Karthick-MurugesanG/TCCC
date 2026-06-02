@@ -31,12 +31,31 @@ document.addEventListener("DOMContentLoaded", init);
 
 function init() {
   cacheElements();
+  syncStateFromUrl();
   const hasPersistedState = hydrateState();
   bindEvents();
   seedInitialDashboardCache(hasPersistedState);
   renderAll();
   restoreAskState();
   void loadDashboard();
+}
+
+function syncStateFromUrl() {
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  const urlBrand = urlParams.get("brand");
+  const urlPeriod = urlParams.get("period");
+  const urlYear = urlParams.get("year");
+  const urlChannel = urlParams.get("channel");
+  const urlCustomer = urlParams.get("customer");
+  const urlRegion = urlParams.get("region");
+  
+  if (urlBrand) state.brand = urlBrand;
+  if (urlPeriod) state.period = urlPeriod;
+  if (urlYear) state.year = urlYear;
+  if (urlChannel) state.channel = urlChannel;
+  if (urlCustomer) state.customer = urlCustomer;
+  if (urlRegion) state.region = urlRegion;
 }
 
 function cacheElements() {
@@ -317,6 +336,7 @@ function bindEvents() {
     state.customer = "";
     state.region = "";
     persistState();
+    updateUrlParams();
     loadDashboard();
   });
 
@@ -326,6 +346,7 @@ function bindEvents() {
     state.customer = "";
     state.region = "";
     persistState();
+    updateUrlParams();
     loadDashboard();
   });
 
@@ -334,6 +355,7 @@ function bindEvents() {
     state.customer = "";
     state.region = "";
     persistState();
+    updateUrlParams();
     loadDashboard();
   });
 
@@ -344,6 +366,7 @@ function bindEvents() {
     state.customer = "";
     state.region = "";
     persistState();
+    updateUrlParams();
     loadDashboard();
   });
 
@@ -353,6 +376,7 @@ function bindEvents() {
     state.customer = card.dataset.customer;
     state.region = "";
     persistState();
+    updateUrlParams();
     loadDashboard();
   });
 
@@ -361,6 +385,7 @@ function bindEvents() {
     if (!card) return;
     state.region = card.dataset.region;
     persistState();
+    updateUrlParams();
     loadDashboard();
   });
 
@@ -376,6 +401,25 @@ function bindEvents() {
   els.nlInput?.addEventListener("input", () => {
     persistAskDraft(els.nlInput.value);
   });
+  
+  // Handle browser back/forward buttons
+  window.addEventListener("popstate", () => {
+    syncStateFromUrl();
+    loadDashboard();
+  });
+}
+
+function updateUrlParams() {
+  const params = new URLSearchParams();
+  if (state.brand) appendParam(params, "brand", state.brand);
+  if (state.period) appendParam(params, "period", state.period);
+  if (state.year) appendParam(params, "year", state.year);
+  if (state.channel) appendParam(params, "channel", state.channel);
+  if (state.customer) appendParam(params, "customer", state.customer);
+  if (state.region) appendParam(params, "region", state.region);
+  
+  const newUrl = `${window.location.pathname}${params.toString() ? "?" + params.toString() : ""}`;
+  window.history.pushState({}, "", newUrl);
 }
 
 async function loadDashboard() {
@@ -588,6 +632,8 @@ function renderBrandCards() {
       state.brand = button.dataset.brand;
       state.customer = "";
       state.region = "";
+      persistState();
+      updateUrlParams();
       loadDashboard();
     });
   });
@@ -655,23 +701,66 @@ function renderPath() {
 
 function renderChannelSwitcher() {
   if (!els.channelSwitcher) return;
+  
   const pageKey = String(document.body.dataset.page || "");
-  if (pageKey !== "channels") return;
+  const allowedPages = ["channels", "dashboard", "analysis", "customer", "regional", "root"];
+  if (!allowedPages.includes(pageKey)) return;
+  
   const channels = dashboardData.filters?.channels || [];
-  const path = window.location.pathname;
+  const currentChannel = state.channel || "TEG";
+  
   els.channelSwitcher.innerHTML = channels
     .map((channel) => {
-      const href = buildChannelHref(channel.key);
-      // Determine active by matching pathname (ignore query string)
-      const active = path === href;
-      const ariaCurrent = active ? 'aria-current="page"' : "";
+      const channelKey = channel.key;
+      const isActive = getChannelKey(channelKey) === getChannelKey(currentChannel);
+      const href = buildChannelHrefWithState(channelKey);
+      
       return `
-        <a class="header-pill channel-switch ${active ? "active" : ""}" href="${escapeAttr(href)}" ${ariaCurrent}>
+        <a class="header-pill channel-switch ${isActive ? "active" : ""}" 
+           href="${escapeAttr(href)}" 
+           data-channel="${escapeAttr(channelKey)}"
+           ${isActive ? 'aria-current="page"' : ''}>
           ${escapeHtml(channel.label)}
         </a>
-      `);
+      `;
     })
     .join("");
+  
+  els.channelSwitcher.querySelectorAll(".channel-switch").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const channelKey = link.dataset.channel;
+      if (channelKey && getChannelKey(channelKey) !== getChannelKey(currentChannel)) {
+        state.channel = channelKey;
+        state.customer = "";
+        state.region = "";
+        persistState();
+        updateUrlParams();
+        loadDashboard();
+      }
+    });
+  });
+}
+
+function buildChannelHrefWithState(channel) {
+  const params = new URLSearchParams();
+  
+  if (state.brand) appendParam(params, "brand", state.brand);
+  if (state.period) appendParam(params, "period", state.period);
+  if (state.year) appendParam(params, "year", state.year);
+  if (state.customer) appendParam(params, "customer", state.customer);
+  if (state.region) appendParam(params, "region", state.region);
+  
+  const queryString = params.toString();
+  const channelKey = getChannelKey(channel);
+  
+  let basePath;
+  if (channelKey === "PFM") basePath = "/analysis/pmf";
+  else if (channelKey === "L&T") basePath = "/analysis/lt";
+  else if (channelKey === "HORECA") basePath = "/analysis/horeca";
+  else basePath = "/analysis/channels/teg";
+  
+  return queryString ? `${basePath}?${queryString}` : basePath;
 }
 
 function renderChannelHero() {
@@ -719,22 +808,42 @@ function renderChannelHero() {
 function renderChannels() {
   if (!els.channelCards) return;
   const channels = dashboardData.channels || [];
+  const currentChannel = state.channel || "TEG";
+  
   els.channelCards.innerHTML = channels
     .map((channel) => {
-      const active = getChannelKey(channel.key) === getChannelKey(state.channel);
-      const href = buildChannelHref(channel.key);
+      const channelKey = channel.key;
+      const isActive = getChannelKey(channelKey) === getChannelKey(currentChannel);
       const hasData = hasChannelData(channel);
+      
       return `
-        <a class="channel-tab ${active ? "active" : ""} ${hasData ? "" : "is-empty"}" data-channel="${escapeAttr(channel.key)}" href="${escapeAttr(href)}">
+        <button type="button" 
+                class="channel-tab ${isActive ? "active" : ""} ${hasData ? "" : "is-empty"}" 
+                data-channel="${escapeAttr(channelKey)}"
+                aria-pressed="${isActive}">
           <span class="channel-label">${escapeHtml(channel.label)}</span>
           <strong>${hasData ? formatPct(channel.value_share) : "—"}</strong>
           <small>${escapeHtml(channel.title)}</small>
           <em>${hasData ? escapeHtml(channel.description) : "No mapped data in this workbook."}</em>
           <span class="channel-meta">${hasData ? `${formatGrowth(channel.growth)} / ${formatMoney(channel.revenue)}` : "No channel rows"}</span>
-        </a>
+        </button>
       `;
     })
     .join("");
+  
+  els.channelCards.querySelectorAll("[data-channel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const newChannel = button.dataset.channel;
+      if (newChannel && getChannelKey(newChannel) !== getChannelKey(currentChannel)) {
+        state.channel = newChannel;
+        state.customer = "";
+        state.region = "";
+        persistState();
+        updateUrlParams();
+        loadDashboard();
+      }
+    });
+  });
 }
 
 function renderCustomers() {
@@ -926,14 +1035,6 @@ function buildDefaultPrompt() {
   const brandSubject = getBrandSubject();
   const countryLabel = getCountryLabel();
   return `How is ${brandSubject} performing in ${countryLabel} and what are the draggers and drivers?`;
-}
-
-function buildChannelHref(channel) {
-  const channelKey = getChannelKey(channel);
-  if (channelKey === "PFM") return "/analysis/pmf";
-  if (channelKey === "L&T") return "/analysis/lt";
-  if (channelKey === "HORECA") return "/analysis/horeca";
-  return "/analysis/channels/teg";
 }
 
 function buildBrandDetailHref(brand) {

@@ -12,7 +12,6 @@ try:
 except Exception:
     pai = None
     SmartDataframe = None
-    
     LiteLLM = None
     PANDASAI_AVAILABLE = False
 
