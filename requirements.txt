@@ -1,5 +1,5 @@
 pandasai
-litellm
+pandasai-litellm
 botocore
 pandas>=2.2.0
 fastapi
