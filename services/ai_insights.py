@@ -12,6 +12,9 @@ import pandas as pd
 from services.data_sources import load_data_catalog
 from services.data_sources import _normalize_text
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 ALL_BRAND_LABEL = "All Brands"
@@ -223,27 +226,97 @@ def _split_key_values(value: str | None) -> list[str]:
     return [item.strip() for item in re.split(r"[,\s]+", value) if item.strip()]
 
 
+def _validate_gemini_key(api_key: str) -> bool:
+    """Validate if a Gemini API key has the correct format"""
+    if not api_key:
+        return False
+    # Gemini API keys start with AIzaSy and are typically 39 characters
+    if not api_key.startswith("AIzaSy"):
+        return False
+    return True
+
 def _configured_gemini_keys() -> list[str]:
     list_value = os.getenv("GEMINI_API_KEYS") or os.getenv("GOOGLE_API_KEYS")
     keys = _split_key_values(list_value)
     if keys:
-        return keys[:GEMINI_MAX_KEYS]
+        # Validate each key
+        valid_keys = [k for k in keys[:GEMINI_MAX_KEYS] if _validate_gemini_key(k)]
+        if valid_keys:
+            return valid_keys
+        print(f"Warning: Found {len(keys)} keys but none have valid format")
 
     numbered_keys: list[str] = []
     for index in range(1, GEMINI_MAX_KEYS + 1):
         candidate = os.getenv(f"GEMINI_API_KEY_{index}") or os.getenv(f"GOOGLE_API_KEY_{index}")
         if candidate:
             candidate = candidate.strip()
-        if candidate and candidate not in numbered_keys:
+        if candidate and candidate not in numbered_keys and _validate_gemini_key(candidate):
             numbered_keys.append(candidate)
 
     fallback_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
     if numbered_keys:
-        if fallback_key and fallback_key not in numbered_keys:
+        if fallback_key and fallback_key not in numbered_keys and _validate_gemini_key(fallback_key):
             numbered_keys.insert(0, fallback_key)
         return numbered_keys[:GEMINI_MAX_KEYS]
 
-    return [fallback_key] if fallback_key else []
+    if fallback_key and _validate_gemini_key(fallback_key):
+        return [fallback_key]
+    
+    print("No valid Gemini API keys found. Please check your environment variables.")
+    return []
+
+def load_data_with_retry(max_retries: int = 3) -> pd.DataFrame:
+    """Load data catalog with retry logic"""
+    for attempt in range(max_retries):
+        try:
+            return load_data_catalog(BASE_DIR)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            print(f"Data loading attempt {attempt + 1} failed: {e}. Retrying...")
+            import time
+            time.sleep(2 ** attempt)  # Exponential backoff
+
+# Replace the global DF assignment
+try:
+    DATA_CATALOG = load_data_with_retry()
+    DF = _prepare_dataframe(DATA_CATALOG.frame)
+except Exception as e:
+    print(f"FATAL: Could not load data catalog: {e}")
+    # Create empty dataframe as fallback
+    DF = pd.DataFrame()
+
+from functools import lru_cache
+from datetime import datetime, timedelta
+
+# Simple time-based cache
+_cache_store = {}
+_cache_ttl = {}
+
+def cached(func):
+    """Simple cache decorator with TTL"""
+    def wrapper(*args, **kwargs):
+        key = f"{func.__name__}:{args}:{kwargs}"
+        if key in _cache_store and datetime.now() < _cache_ttl.get(key, datetime.min):
+            return _cache_store[key]
+        
+        result = func(*args, **kwargs)
+        _cache_store[key] = result
+        _cache_ttl[key] = datetime.now() + timedelta(minutes=5)
+        return result
+    return wrapper
+
+# Apply to expensive functions
+@cached
+def _period_options() -> list[dict[str, Any]]:
+    # existing code...
+    pass
+
+@cached  
+def _brand_options() -> list[dict[str, Any]]:
+    # existing code...
+    pass
+
 
 
 def _gemini_rotation_start(total_keys: int) -> int:

@@ -11,9 +11,7 @@ from urllib.request import Request, urlopen
 
 import pandas as pd
 
-
 DEFAULT_CONFIG_NAME = "tccc_source.json"
-
 
 def _normalize_text(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value).strip().lower())

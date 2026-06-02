@@ -551,6 +551,7 @@ def api_dashboard(
     customer: str | None = None,
     region: str | None = None,
 ):
+    
     return JSONResponse(
         content=build_dashboard_payload(
             brand=brand,

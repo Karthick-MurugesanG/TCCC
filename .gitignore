@@ -1,2 +1,5 @@
 myvenv/
 .env
+.git
+server.log
+pandasai.log
