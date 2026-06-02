@@ -9,4 +9,4 @@ openpyxl
 setuptools
 wheel
 duckdb==1.0.0
-pillow==10.3.0
+pillow
