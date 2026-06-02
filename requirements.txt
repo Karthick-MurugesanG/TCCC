@@ -6,5 +6,3 @@ fastapi
 python-multipart
 uvicorn
 openpyxl
-setuptools
-wheel
