@@ -1,9 +1,8 @@
 pandasai
-pandasai-litellm
+litellm
 botocore
 pandas
-SmartDataframe
 fastapi
 python-multipart
 uvicorn
-starlette>=1.2.1
+openpyxl
