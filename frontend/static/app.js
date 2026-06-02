@@ -658,17 +658,18 @@ function renderChannelSwitcher() {
   const pageKey = String(document.body.dataset.page || "");
   if (pageKey !== "channels") return;
   const channels = dashboardData.filters?.channels || [];
-  const selectedKey = getChannelKey(state.channel);
+  const path = window.location.pathname;
   els.channelSwitcher.innerHTML = channels
     .map((channel) => {
-      const active = getChannelKey(channel.key) === selectedKey;
       const href = buildChannelHref(channel.key);
+      // Determine active by matching pathname (ignore query string)
+      const active = path === href;
       const ariaCurrent = active ? 'aria-current="page"' : "";
       return `
         <a class="header-pill channel-switch ${active ? "active" : ""}" href="${escapeAttr(href)}" ${ariaCurrent}>
           ${escapeHtml(channel.label)}
         </a>
-      `;
+      `);
     })
     .join("");
 }

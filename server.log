@@ -1,0 +1,22 @@
+INFO:     Started server process [321274]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8022 (Press CTRL+C to quit)
+INFO:     127.0.0.1:38096 - "GET /api/channel/TEG/customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34816 - "GET /api/channel/PFM/customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32792 - "GET /api/channel/L%26T/customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36050 - "GET /api/channel/HORECA/customers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44936 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44938 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44938 - "GET /analysis/channels/teg HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44938 - "GET /analysis/pmf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44938 - "GET /analysis/lt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44938 - "GET /analysis/horeca HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44938 - "GET /analysis/channels/teg HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44938 - "GET /analysis/pmf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44938 - "GET /analysis/lt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44938 - "GET /analysis/horeca HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [321274]
