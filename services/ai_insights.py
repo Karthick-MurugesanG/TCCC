@@ -14,6 +14,9 @@ from services.data_sources import _normalize_text
 
 from dotenv import load_dotenv
 
+import logging
+logging.getLogger("pandasai").setLevel(logging.ERROR)
+
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -70,9 +73,10 @@ try:
     from pandasai import SmartDataframe
 
     PANDASAI_AVAILABLE = True
-except Exception:
+except Exception as e:
     SmartDataframe = None
     PANDASAI_AVAILABLE = False
+    print(f"[PANDASAI] ✗ Failed to import SmartDataframe: {e}")
 
 
 def _safe_float(value: Any) -> float:
@@ -109,8 +113,9 @@ def _delta(current: Any, previous: Any) -> float:
 def _is_all_brand(brand: str | None) -> bool:
     if brand is None:
         return True
-    text = str(brand).strip()
-    return text == "" or text.upper() == "ALL"
+    text = str(brand).strip().lower()
+    # Treat "all", "all brand", and "all brands" as "All"
+    return text in ("", "all", "all brand", "all brands")
 
 
 def _brand_label(brand: str | None) -> str:
@@ -157,9 +162,124 @@ def _parse_period(period: Any) -> dict[str, Any]:
         "sort": sort_date,
     }
 
+def normalize_entity_value(value: str, entity_type: str) -> str:
+    """
+    Normalize entity values based on their type:
+    - brand: Convert to UPPER CASE
+    - region: Convert to Title Case (first letter of each word capital)
+    - retailer_banner: Special handling for OK/PNP + Title Case for others
+    - country: Always aggregate to "South Africa"
+    """
+    if not value or pd.isna(value):
+        return ""
+    
+    value_str = str(value).strip()
+    
+    # Handle country special case
+    if entity_type == "country":
+        # Normalize all variations to "South Africa"
+        if re.search(r'south\s*africa|southafrica', value_str.lower()):
+            return "South Africa"
+        return value_str
+    
+    # Handle brand - convert to UPPER CASE
+    if entity_type == "brand":
+        # print(value_str.upper())
+        return value_str.upper()
+    
+    # Handle region - Title Case (first letter of each word capital)
+    if entity_type == "region":
+        # Split by space and capitalize first letter of each word
+        words = value_str.split()
+        capitalized_words = [word.capitalize() for word in words]
+        # print(" ".join(capitalized_words))
+        return " ".join(capitalized_words)
+    
+    # Handle retailer banner
+    if entity_type == "retailer_banner":
+        words = value_str.split()
+        processed_words = []
+        for word in words:
+            word_lower = word.lower()
+            if word_lower == "ok":
+                processed_words.append("OK")
+            elif word_lower == "pnp":
+                processed_words.append("PnP")
+            else:
+                # Capitalize first letter, rest small
+                if len(word) > 1:
+                    processed_words.append(word[0].upper() + word[1:].lower())
+                else:
+                    processed_words.append(word.upper())
+        # print(" ".join(processed_words))
+        return " ".join(processed_words)
+    
+    # Default: return as is
+    return value_str
+
+
+def identify_entity_type(column_name: str) -> str:
+    """
+    Identify what type of entity a column represents based on its name.
+    Returns: 'brand', 'region', 'retailer_banner', 'country', or 'unknown'
+    """
+    if not column_name:
+        return "unknown"
+    
+    col_lower = column_name.lower()
+    
+    # Check for brand
+    if col_lower in ['brand', 'brand_name', 'product_brand', 'brand_key']:
+        return "brand"
+    
+    # Check for region
+    if col_lower in ['region', 'province', 'area', 'territory']:
+        return "region"
+    
+    # Check for retailer banner
+    if col_lower in ['customer', 'retailer_banner', 'banner', 'retailer', 'store', 'retail_banner', 'retailer_name']:
+        return "retailer_banner"
+    
+    # Check for country
+    if col_lower in ['country', 'market', 'nation']:
+        return "country"
+    
+    return "unknown"
+
+
+
+def normalize_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalize all relevant columns in the dataframe based on their entity type.
+    """
+    if df.empty:
+        return df
+    
+    df_normalized = df.copy()
+    
+    # Define column mapping for different entity types
+    column_mappings = {
+        'brand': ['Brand', 'BrandKey', 'BrandName', 'ProductBrand'],
+        'region': ['Region', 'Province', 'Area', 'Territory'],
+        'retailer_banner': ['Customer', 'RetailerBanner', 'Banner', 'Retailer', 'Store'],
+        'country': ['Country', 'Market', 'Nation']
+    }
+    
+    # Normalize each column based on its type
+    for entity_type, columns in column_mappings.items():
+        for col in columns:
+            if col in df_normalized.columns:
+                df_normalized[col] = df_normalized[col].apply(
+                    lambda x: normalize_entity_value(x, entity_type) if pd.notna(x) else x
+                )
+    
+    return df_normalized
 
 def _prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     prepared = df.copy()
+
+    # Apply entity normalization first
+    prepared = normalize_dataframe_columns(prepared)
 
     for column in ("Brand", "Period", "Customer", "Region", "Category"):
         if column not in prepared.columns:
@@ -227,15 +347,21 @@ def _split_key_values(value: str | None) -> list[str]:
 
 
 def _validate_gemini_key(api_key: str) -> bool:
-    """Validate if a Gemini API key has the correct format"""
+    """
+    Validate if a Gemini API key is valid.
+    Modern Gemini API keys can have various formats, so we allow any non-empty key.
+    """
     if not api_key:
         return False
-    # Gemini API keys start with AIzaSy and are typically 39 characters
-    if not api_key.startswith("AIzaSy"):
+    # Strip and validate non-empty
+    api_key = str(api_key).strip()
+    # Must be at least 20 chars (minimum reasonable length for API keys)
+    if len(api_key) < 20:
         return False
     return True
 
 def _configured_gemini_keys() -> list[str]:
+    """Load and validate Gemini API keys from environment variables."""
     list_value = os.getenv("GEMINI_API_KEYS") or os.getenv("GOOGLE_API_KEYS")
     keys = _split_key_values(list_value)
     if keys:
@@ -243,7 +369,7 @@ def _configured_gemini_keys() -> list[str]:
         valid_keys = [k for k in keys[:GEMINI_MAX_KEYS] if _validate_gemini_key(k)]
         if valid_keys:
             return valid_keys
-        print(f"Warning: Found {len(keys)} keys but none have valid format")
+        print(f"[GEMINI] Warning: Found {len(keys)} keys in list but none passed validation")
 
     numbered_keys: list[str] = []
     for index in range(1, GEMINI_MAX_KEYS + 1):
@@ -260,9 +386,10 @@ def _configured_gemini_keys() -> list[str]:
         return numbered_keys[:GEMINI_MAX_KEYS]
 
     if fallback_key and _validate_gemini_key(fallback_key):
+        print(f"[GEMINI] Using fallback GEMINI_API_KEY or GOOGLE_API_KEY env var")
         return [fallback_key]
-    
-    print("No valid Gemini API keys found. Please check your environment variables.")
+
+    print("[GEMINI] ✗ No valid Gemini API keys configured. Set GEMINI_API_KEY or GOOGLE_API_KEY env var")
     return []
 
 def load_data_with_retry(max_retries: int = 3) -> pd.DataFrame:
@@ -306,18 +433,39 @@ def cached(func):
         return result
     return wrapper
 
-# Apply to expensive functions
 @cached
 def _period_options() -> list[dict[str, Any]]:
-    # existing code...
-    pass
+    periods = (
+        DF[["PeriodKey", "PeriodLabel", "PeriodShort", "MonthName", "Year", "PeriodSort"]]
+        .drop_duplicates()
+        .sort_values("PeriodSort")
+    )
+    return [
+        {
+            "key": row.PeriodKey,
+            "label": row.PeriodLabel,
+            "short": row.PeriodShort,
+            "month": row.MonthName,
+            "year": row.Year,
+        }
+        for row in periods.itertuples()
+    ]
 
-@cached  
 def _brand_options() -> list[dict[str, Any]]:
-    # existing code...
-    pass
-
-
+    branded = DF[DF["BrandKey"] != "UNKNOWN"].copy()
+    grouped = (
+        branded.groupby("BrandKey", dropna=False)
+        .agg({"Brand": "first", "SalesValue": "sum"})
+        .reset_index()
+        .sort_values("SalesValue", ascending=False)
+    )
+    
+    # Also add case-insensitive versions for lookup
+    options = [
+        {"name": ALL_BRAND_LABEL, "value": ""},
+        *[{"name": row.Brand, "value": row.Brand} for row in grouped.itertuples()],
+    ]
+    return options
 
 def _gemini_rotation_start(total_keys: int) -> int:
     if total_keys <= 0:
@@ -337,6 +485,11 @@ def _gemini_rotation_set(next_index: int, total_keys: int) -> None:
 def _gemini_answer_prompt(prompt: str) -> str:
     instructions = [
         "Answer the user's question using the workbook data.",
+        "CRITICAL DATA FORMATTING RULES (Apply to all filters):",
+        "- Column 'Brand' values are ALWAYS UPPERCASE (e.g., 'FANTA', 'COKE').",
+        "- Column 'Region' values are Title Case (e.g., 'Eastern Cape').",
+        "- Column 'Customer' (Retailer Banner) values: 'OK' and 'PnP' are case-sensitive, others are Title Case.",
+        "- Column 'Country' value is 'South Africa'.",
         "Ignore the dashboard header filters and do not widen the answer to all brands unless the question explicitly asks for the full market.",
         "If the question names a specific brand, focus only on that brand.",
         "Do not mention the UI filters unless the user asks about them.",
@@ -346,17 +499,35 @@ def _gemini_answer_prompt(prompt: str) -> str:
 
 
 def _smart_dataframe(api_key: str):
-    if not (PANDASAI_AVAILABLE and api_key):
-        return None
+    from pandasai.llm import LLM
+    import litellm
+
+    # A small custom class to make litellm work with PandasAI on Python 3.12
+    class LiteLLMWrapper(LLM):
+        def __init__(self, model, api_key):
+            self.model = model
+            self.api_key = api_key
+        def call(self, instruction: Any, value: Any = None) -> str:
+            # Force conversion to string as PandasAI passes Prompt objects
+            response = litellm.completion(
+                model=self.model,
+                messages=[{"role": "user", "content": str(instruction)}],
+                api_key=self.api_key
+            )
+            return response.choices[0].message.content
+        @property
+        def type(self) -> str:
+            return "lite-llm-wrapper"
 
     try:
-        from pandasai_litellm.litellm import LiteLLM
-    except Exception:
+        # Use our custom wrapper instead of the pandasai_litellm package
+        llm = LiteLLMWrapper(model=GEMINI_MODEL, api_key=api_key)
+        analytics_df = DF[ANALYTICS_COLUMNS].copy()
+        sdf = SmartDataframe(analytics_df, config={"llm": llm, "verbose": False})
+        return sdf
+    except Exception as e:
+        print(f"[SMART_DF] ✗ Failed to create SmartDataframe: {e}")
         return None
-
-    llm = LiteLLM(model=GEMINI_MODEL, api_key=api_key, max_retries=0)
-    analytics_df = DF[ANALYTICS_COLUMNS].copy()
-    return SmartDataframe(analytics_df, config={"llm": llm})
 
 
 def _ask_with_gemini(prompt: str) -> tuple[str, dict[str, Any]]:
@@ -368,9 +539,18 @@ def _ask_with_gemini(prompt: str) -> tuple[str, dict[str, Any]]:
         "gemini_attempts": 0,
         "ask_mode": True,
     }
-    if not keys or not PANDASAI_AVAILABLE:
+    
+    if not keys:
+        print(f"[ASK_GEMINI] ✗ No API keys configured")
         return (
-            "Gemini is not configured for this environment, so the Ask Gemini tab cannot answer right now.",
+            "No Gemini API keys found. Please set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.",
+            status,
+        )
+    
+    if not PANDASAI_AVAILABLE:
+        print(f"[ASK_GEMINI] ✗ PandasAI not available")
+        return (
+            "PandasAI is not installed. Please install: pip install pandasai pandasai-litellm",
             status,
         )
 
@@ -408,22 +588,22 @@ def _ask_with_gemini(prompt: str) -> tuple[str, dict[str, Any]]:
     )
 
 
-def _period_options() -> list[dict[str, Any]]:
-    periods = (
-        DF[["PeriodKey", "PeriodLabel", "PeriodShort", "MonthName", "Year", "PeriodSort"]]
-        .drop_duplicates()
-        .sort_values("PeriodSort")
-    )
-    return [
-        {
-            "key": row.PeriodKey,
-            "label": row.PeriodLabel,
-            "short": row.PeriodShort,
-            "month": row.MonthName,
-            "year": row.Year,
-        }
-        for row in periods.itertuples()
-    ]
+# def _period_options() -> list[dict[str, Any]]:
+#     periods = (
+#         DF[["PeriodKey", "PeriodLabel", "PeriodShort", "MonthName", "Year", "PeriodSort"]]
+#         .drop_duplicates()
+#         .sort_values("PeriodSort")
+#     )
+#     return [
+#         {
+#             "key": row.PeriodKey,
+#             "label": row.PeriodLabel,
+#             "short": row.PeriodShort,
+#             "month": row.MonthName,
+#             "year": row.Year,
+#         }
+#         for row in periods.itertuples()
+#     ]
 
 
 def _year_options() -> list[Any]:
@@ -439,18 +619,18 @@ def _default_year() -> Any:
     return years[-1] if years else current_year
 
 
-def _brand_options() -> list[dict[str, Any]]:
-    branded = DF[DF["BrandKey"] != "UNKNOWN"].copy()
-    grouped = (
-        branded.groupby("BrandKey", dropna=False)
-        .agg({"Brand": "first", "SalesValue": "sum"})
-        .reset_index()
-        .sort_values("SalesValue", ascending=False)
-    )
-    return [
-        {"name": ALL_BRAND_LABEL, "value": ""},
-        *[{"name": row.Brand, "value": row.Brand} for row in grouped.itertuples()],
-    ]
+# def _brand_options() -> list[dict[str, Any]]:
+#     branded = DF[DF["BrandKey"] != "UNKNOWN"].copy()
+#     grouped = (
+#         branded.groupby("BrandKey", dropna=False)
+#         .agg({"Brand": "first", "SalesValue": "sum"})
+#         .reset_index()
+#         .sort_values("SalesValue", ascending=False)
+#     )
+#     return [
+#         {"name": ALL_BRAND_LABEL, "value": ""},
+#         *[{"name": row.Brand, "value": row.Brand} for row in grouped.itertuples()],
+#     ]
 
 
 def _default_period(year: Any | None = None) -> str:
@@ -465,10 +645,171 @@ def _default_period(year: Any | None = None) -> str:
 
 def _normalize_brand(brand: str | None) -> str:
     if not _is_all_brand(brand):
-        match = DF[DF["BrandKey"] == str(brand).upper()]
+        # First try direct match
+        brand_upper = str(brand).upper()
+        match = DF[DF["BrandKey"] == brand_upper]
+        
+        if match.empty:
+            # Try case-insensitive match
+            brand_normalized = _normalize_text(brand)
+            for idx, row in DF.iterrows():
+                if _normalize_text(row.get("Brand", "")) == brand_normalized:
+                    return str(row["Brand"])
+            # Try contains match
+            for idx, row in DF.iterrows():
+                if brand_normalized in _normalize_text(row.get("Brand", "")):
+                    return str(row["Brand"])
+        
         if not match.empty:
             return str(match.iloc[0]["Brand"])
     return ""
+
+
+def _build_normalized_lookup(values: pd.Series) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for raw_value in values.dropna().astype(str).map(str.strip).unique():
+        if not raw_value:
+            continue
+        normalized = _normalize_text(raw_value)
+        if normalized and len(normalized) >= 2 and normalized not in lookup:
+            lookup[normalized] = raw_value
+    return lookup
+
+
+def _build_brand_lookup() -> dict[str, str]:
+    """Build case-insensitive brand lookup dictionary"""
+    lookup: dict[str, str] = {}
+    
+    for option in _brand_options():
+        brand_name = str(option["name"]).strip()
+        if brand_name == ALL_BRAND_LABEL:
+            continue
+            
+        # Add original brand name
+        normalized = _normalize_text(brand_name)
+        if normalized and len(normalized) >= 2 and normalized not in lookup:
+            lookup[normalized] = brand_name
+        
+        # Add uppercase version
+        if brand_name.upper() not in lookup:
+            lookup[brand_name.upper()] = brand_name
+        
+        # Add lowercase version
+        if brand_name.lower() not in lookup:
+            lookup[brand_name.lower()] = brand_name
+        
+        # Special mappings for common brand variations
+        brand_lower = brand_name.lower()
+        
+        if "coca-cola" in brand_lower or "cocacola" in brand_lower or "coke" in brand_lower:
+            if "zero" in brand_lower or "nosugar" in brand_lower:
+                lookup["cokezero"] = brand_name
+                lookup["coke zero"] = brand_name
+            elif "light" in brand_lower or "diet" in brand_lower:
+                lookup["dietcoke"] = brand_name
+                lookup["diet coke"] = brand_name
+            else:
+                lookup["coke"] = brand_name
+                lookup["coca"] = brand_name
+        
+        if "sprite" in brand_lower:
+            if "zero" in brand_lower or "nosugar" in brand_lower or "diet" in brand_lower or "light" in brand_lower:
+                lookup["spritezero"] = brand_name
+                lookup["sprite zero"] = brand_name
+            else:
+                lookup["sprite"] = brand_name
+        
+        if "fanta" in brand_lower:
+            lookup["fanta"] = brand_name
+        
+        if "sparletta" in brand_lower:
+            lookup["sparletta"] = brand_name
+    
+    return lookup
+
+
+def _match_text_in_prompt(prompt_text: str, lookup: dict[str, str]) -> str | None:
+    """Match text in prompt with case-insensitive lookup using word boundaries"""
+    if not prompt_text:
+        return None
+    
+    prompt_lower = prompt_text.lower()
+    # Sort candidates by length (longest first) to catch "Coca Cola Zero" before "Coca Cola"
+    ordered_candidates = sorted(lookup.items(), key=lambda item: len(item[0]), reverse=True)
+    
+    for normalized, original in ordered_candidates:
+        # Skip empty or single-character matches to avoid false positives
+        if not normalized or len(normalized) < 2:
+            continue
+            
+        # Use regex to match whole words (\b ensures word boundaries)
+        # This prevents "tfgedgferter" from matching something partially
+        pattern = rf"\b{re.escape(normalized)}\b"
+        if re.search(pattern, prompt_lower):
+            return original
+            
+        # Also check the original name with word boundaries
+        if original:
+            original_lower = original.lower()
+            pattern_orig = rf"\b{re.escape(original_lower)}\b"
+            if re.search(pattern_orig, prompt_lower):
+                return original
+    
+    return None
+
+
+def _infer_prompt_filters(
+    prompt: str,
+    brand: str | None = None,
+    region: str | None = None,
+    customer: str | None = None,
+    country: str | None = None,
+) -> dict[str, str | None]:
+    normalized_prompt = _normalize_text(prompt)
+    inferred_brand = brand
+    inferred_region = region
+    inferred_customer = customer
+    inferred_country = country
+
+    if not inferred_brand:
+        brand_lookup = {
+            _normalize_text(option["name"]): option["name"]
+            for option in _brand_options()
+            if option["name"] != ALL_BRAND_LABEL
+        }
+        inferred_brand = _match_text_in_prompt(normalized_prompt, brand_lookup)
+        # Normalize the inferred brand to UPPER CASE
+        if inferred_brand:
+            inferred_brand = normalize_entity_value(inferred_brand, "brand")
+
+    if not inferred_region and "Region" in DF.columns:
+        inferred_region = _match_text_in_prompt(normalized_prompt, _build_normalized_lookup(DF["Region"]))
+        # Normalize the inferred region to Title Case
+        if inferred_region:
+            inferred_region = normalize_entity_value(inferred_region, "region")
+
+    if not inferred_customer and "Customer" in DF.columns:
+        inferred_customer = _match_text_in_prompt(normalized_prompt, _build_normalized_lookup(DF["Customer"]))
+        # Normalize the inferred customer to Title Case with special handling for OK/PNP
+        if inferred_customer:
+            inferred_customer = normalize_entity_value(inferred_customer, "retailer_banner")
+
+    # Handle country - always default to South Africa if not found
+    if not inferred_country:
+        # Check if country mentioned in prompt, otherwise default
+        mentioned_country = _match_text_in_prompt(normalized_prompt, {"south africa": "South Africa", "southafrica": "South Africa"})
+        inferred_country = mentioned_country or "South Africa"
+    else:
+        # Normalize existing country
+        inferred_country = normalize_entity_value(inferred_country, "country")
+
+    return {
+        "brand": inferred_brand or "all brand",
+        "region": inferred_region or "all region",
+        "customer": inferred_customer or "all retailer",
+        "country": inferred_country,
+    }
+
 
 
 def _normalize_period(period: str | None, year: Any | None = None) -> str:
@@ -515,14 +856,22 @@ def _slice(
     region: str | None = None,
 ) -> pd.DataFrame:
     data = DF[DF["PeriodKey"] == period].copy()
+    
+    # Check for brand "all" condition
     if not _is_all_brand(brand):
         data = data[data["BrandKey"] == brand.upper()]
+        
     if channel:
         data = data[data["Channel"] == channel]
-    if customer:
+        
+    # Check for customer "all retailer" condition
+    if customer and str(customer).lower() != "all retailer":
         data = data[data["Customer"] == customer]
-    if region:
+        
+    # Check for region "all region" condition
+    if region and str(region).lower() != "all region":
         data = data[data["Region"] == region]
+        
     return data
 
 
@@ -1019,7 +1368,27 @@ def generate_executive_summary(
     ask_mode: bool = False,
 ) -> dict[str, Any]:
     if ask_mode:
-        ai_answer, ai_status = _ask_with_gemini(prompt)
+        inferred_filters = _infer_prompt_filters(
+            prompt=prompt,
+            brand=brand,
+            region=region,
+            customer=customer,
+            country=country,
+        )
+        contextual_prompt = (
+            f"{prompt}\n\n"
+            f"Use these inferred filters when generating Pandas code:\n"
+            f"- Brand: {inferred_filters['brand'] or 'any'}\n"
+            f"- Region: {inferred_filters['region'] or 'any'}\n"
+            f"- Retailer: {inferred_filters['customer'] or 'any'}\n"
+            f"- Country: {inferred_filters['country'] or DATA_CATALOG.country or 'any'}\n\n"
+            f"Rules:\n"
+            f"1. Filter matching must be case-insensitive.\n"
+            f"2. Ignore capitalization differences in brand, region, retailer, and country values.\n"
+            f"3. If the prompt contains 'South Africa', always treat it as a COUNTRY value, never as a REGION value.\n"
+            f"4. Apply inferred filters only when they are relevant to the user's question.\n"
+        )
+        ai_answer, ai_status = _ask_with_gemini(contextual_prompt)
         return {
             "summary": ai_answer,
             "draggers": [],
