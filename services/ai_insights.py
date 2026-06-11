@@ -490,11 +490,8 @@ def _gemini_answer_prompt(prompt: str) -> str:
         "- Column 'Region' values are Title Case (e.g., 'Eastern Cape').",
         "- Column 'Customer' (Retailer Banner) values: 'OK' and 'PnP' are case-sensitive, others are Title Case.",
         "- Column 'Country' value is 'South Africa'.",
-<<<<<<< HEAD
         "Ignore the dashboard header filters and do not widen the answer to all brands unless the question explicitly asks for the full market.",
-=======
         "Ignore the dashboard header filters",
->>>>>>> 592c21d (Updated UI and header feild)
         "If the question names a specific brand, focus only on that brand.",
         "Do not mention the UI filters unless the user asks about them.",
         f"Question: {prompt}",
@@ -547,22 +544,17 @@ def _ask_with_gemini(prompt: str) -> tuple[str, dict[str, Any]]:
     if not keys:
         print(f"[ASK_GEMINI] ✗ No API keys configured")
         return (
-<<<<<<< HEAD
             "No Gemini API keys found. Please set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.",
-=======
             "The AI assistant is not yet configured with an API key. Please contact your administrator.",
->>>>>>> 592c21d (Updated UI and header feild)
+
             status,
         )
     
     if not PANDASAI_AVAILABLE:
         print(f"[ASK_GEMINI] ✗ PandasAI not available")
         return (
-<<<<<<< HEAD
             "PandasAI is not installed. Please install: pip install pandasai pandasai-litellm",
-=======
             "The AI analysis service is currently unavailable. Please check the system installation.",
->>>>>>> 592c21d (Updated UI and header feild)
             status,
         )
 
