@@ -12,12 +12,22 @@ from services.ai_insights import (
     build_dashboard_payload,
     build_bootstrap_payload,
     generate_brand_summary,
+    generate_brand_performance_pandas,
     generate_channel_summary,
     generate_customer_summary,
     generate_executive_summary,
     generate_region_summary,
     generate_root_cause_analysis,
+    normalize_entity_value,
+    identify_entity_type,
 )
+
+from services.analytics_storage import AnalyticsStorage
+
+from config.db import init_db, SessionLocal, get_db
+from services.cache_service import CacheService
+import time
+import json
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -35,7 +45,7 @@ CHANNEL_TEMPLATE_MAP = {
 
 def _normalize_channel_key(channel: str | None) -> str:
     token = "".join(character for character in str(channel or "").upper() if character.isalnum())
-    if token in {"PFM", "PMF"}:
+    if token in {"PFM"}:
         return "PFM"
     if token == "LT":
         return "L&T"
@@ -46,8 +56,35 @@ def _normalize_channel_key(channel: str | None) -> str:
     return "TEG"
 
 
+def _dataset_reference() -> str:
+    import os
+    data_source_uri = os.getenv("TCCC_DATA_SOURCE_URI", "default_dataset")
+    return Path(data_source_uri).stem or "default_dataset"
+
+def _get_unique_dataset_ref(dataset_name: str, filters: dict[str, Any]) -> str:
+    import json
+    import hashlib
+    filters_json = json.dumps(filters, sort_keys=True, default=str)
+    filters_hash = hashlib.sha256(filters_json.encode()).hexdigest()[:16]
+    return f"{dataset_name}:{filters_hash}"
+
+
 app = FastAPI(title="TCCC South Africa Market Share Analytics")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+
+# Initialize database on application startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and create tables on app start"""
+    init_db()
+    print("[APP] Application started - PostgreSQL database initialized")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on app shutdown"""
+    print("[APP] Application shutting down")
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
@@ -59,14 +96,91 @@ def _bootstrap(
     customer: str | None = None,
     region: str | None = None,
 ) -> dict:
-    return build_dashboard_payload(
-        brand=brand,
-        period=period,
-        year=year,
-        channel=channel,
-        customer=customer,
-        region=region,
-    )
+    import os
+    from pathlib import Path
+    from config.db import SessionLocal
+    from services.cache_service import CacheService
+    from services.analytics_storage import AnalyticsStorage
+
+    # Extract dataset name from TCCC_DATA_SOURCE_URI
+    data_source_uri = os.getenv("TCCC_DATA_SOURCE_URI", "default_dataset")
+    dataset_name = Path(data_source_uri).stem or "default_dataset"
+    dataset_filters = {
+        "brand": brand,
+        "period": period,
+        "year": year,
+        "channel": channel,
+        "customer": customer,
+        "region": region,
+    }
+
+    # Generate a unique reference for this filter combination to prevent collisions
+    dataset_ref = _get_unique_dataset_ref(dataset_name, dataset_filters)
+
+    db = SessionLocal()
+    try:
+        # Check if we have cached data for this exact filter combination
+        cached = CacheService.get_cached_result(
+            db=db,
+            dataset_reference=dataset_name,
+            analytics_type="dashboard",
+            filters=dataset_filters,
+        )
+        if cached:
+            payload = cached.get("result") if isinstance(cached, dict) else cached.get("result")
+            
+            # Ensure specialized tables are populated for this hashed ref
+            try:
+                AnalyticsStorage.ensure_ui_analytics_persisted(db, dataset_ref, payload)
+            except Exception as e:
+                print(f"[DB] Warning: failed to persist cached payload for {dataset_ref}: {e}")
+
+            return payload
+
+        # No cache found - compute new payload
+        print(f"[UI] Bootstrap cache miss for dataset {dataset_ref} with filters brand={brand}, period={period}, year={year}")
+        payload = build_dashboard_payload(
+            brand=brand,
+            period=period,
+            year=year,
+            channel=channel,
+            customer=customer,
+            region=region,
+        )
+
+        # Check if this exact filter combination already exists in DB before storing
+        from services.cache_service import CacheService
+        cache_key = CacheService._generate_cache_key(dataset_filters, "dashboard")
+        from models import CachedAnalyticsResult
+        
+        existing_record = db.query(CachedAnalyticsResult).filter(
+            CachedAnalyticsResult.dataset_reference == dataset_name,
+            CachedAnalyticsResult.analytics_type == "dashboard",
+            CachedAnalyticsResult.cache_key == cache_key,
+        ).first()
+
+        if existing_record:
+            # Record already exists - use existing data instead of storing new
+            existing_payload = existing_record.result
+            AnalyticsStorage.ensure_ui_analytics_persisted(db, dataset_ref, existing_payload)
+            return existing_payload
+
+        # Record doesn't exist - store the newly computed data
+        CacheService.set_cached_result(
+            db=db,
+            dataset_reference=dataset_name,
+            analytics_type="dashboard",
+            filters=dataset_filters,
+            result=payload,
+            metrics={"source": "ui_bootstrap", "dataset_name": dataset_name},
+            record_count=1,
+        )
+
+        AnalyticsStorage.store_ui_analytics(db, dataset_ref, payload)
+
+        return payload
+    finally:
+        db.close()
 
 
 def _render_page(
@@ -169,9 +283,21 @@ def _render_brand_detail_page(
     resolved_customer = selections.get("customer")
     resolved_region = selections.get("region")
     resolved_country = selections.get("country") or bootstrap.get("country")
+    
+    # using the pandasai
+    # analysis = generate_executive_summary(
+    #     prompt=f"Summarize {selections.get('brand_label') or brand} performance with draggers, drivers, and actions.",
+    #     brand=resolved_brand,
+    #     month=resolved_period,
+    #     year=str(resolved_year) if resolved_year is not None else None,
+    #     channel=resolved_channel,
+    #     customer=resolved_customer,
+    #     region=resolved_region,
+    #     country=resolved_country,
+    # )
 
-    analysis = generate_executive_summary(
-        prompt=f"Summarize {selections.get('brand_label') or brand} performance with draggers, drivers, and actions.",
+    # using the pandas
+    analysis = generate_brand_performance_pandas(
         brand=resolved_brand,
         month=resolved_period,
         year=str(resolved_year) if resolved_year is not None else None,
@@ -410,8 +536,8 @@ def page_channels(
     )
 
 
-@app.get("/analysis/pmf", response_class=HTMLResponse)
-def page_channels_pmf(
+@app.get("/analysis/pfm", response_class=HTMLResponse)
+def page_channels_pfm(
     request: Request,
     brand: str | None = None,
     period: str | None = None,
@@ -479,7 +605,7 @@ def page_channels_redirect():
 def page_channel_detail(channel: str):
     key = _normalize_channel_key(channel)
     if key == "PFM":
-        target = "/analysis/pmf"
+        target = "/analysis/pfm"
     elif key == "L&T":
         target = "/analysis/lt"
     elif key == "HORECA":
@@ -527,7 +653,7 @@ def page_ask(
         request,
         "ask.html",
         "ask",
-        "Ask Gemini",
+        "Ask AI",
         brand=brand,
         period=period,
         year=year,
@@ -537,13 +663,8 @@ def page_ask(
     )
 
 
-@app.get("/api/bootstrap")
-def api_bootstrap():
-    return JSONResponse(content=_bootstrap())
-
-
 @app.get("/api/dashboard")
-def api_dashboard(
+async def api_dashboard(
     brand: str | None = None,
     period: str | None = None,
     year: str | None = None,
@@ -551,9 +672,60 @@ def api_dashboard(
     customer: str | None = None,
     region: str | None = None,
 ):
+    import os
+    from pathlib import Path
+    import time
+    from config.db import SessionLocal
+    from services.cache_service import CacheService
+    from services.analytics_storage import AnalyticsStorage
+    from models import CachedAnalyticsResult
+
+    # Extract dataset name from TCCC_DATA_SOURCE_URI
+    data_source_uri = os.getenv("TCCC_DATA_SOURCE_URI", "default_dataset")
+    dataset_name = Path(data_source_uri).stem or "default_dataset"
     
-    return JSONResponse(
-        content=build_dashboard_payload(
+    dataset_filters = {
+        "brand": brand,
+        "period": period,
+        "year": year,
+        "channel": channel,
+        "customer": customer,
+        "region": region,
+    }
+
+    # Generate a unique reference for this filter combination to prevent collisions in specialized tables
+    dataset_ref = _get_unique_dataset_ref(dataset_name, dataset_filters)
+
+    db = SessionLocal()
+    try:
+        # Try cache first
+        cached_data = CacheService.get_cached_result(
+            db=db,
+            dataset_reference=dataset_name,
+            analytics_type="dashboard",
+            filters=dataset_filters,
+        )
+        if cached_data:
+            cached_payload = cached_data.get("result") if isinstance(cached_data, dict) else None
+            if isinstance(cached_payload, dict):
+                cached_payload["_metadata"] = {
+                    "from_cache": True,
+                    "cached_at": cached_data.get("cached_at"),
+                    "dataset_name": dataset_name,
+                    **(cached_data.get("metrics") or {}),
+                }
+                return JSONResponse(content=cached_payload)
+
+        # Try DB next using the unique filter-aware reference
+        db_row = AnalyticsStorage.get_dashboard_summary_from_db(db, dataset_ref, dataset_filters)
+        if db_row:
+            db_row["_metadata"] = {"from_cache": True, "source": "db_reconstructed", "dataset_name": dataset_name}
+            return JSONResponse(content=db_row)
+
+        # No cache and no DB - compute fresh
+        print(f"[API] Cache miss and DB miss for dataset {dataset_ref} - computing fresh")
+        start_time = time.time()
+        result = build_dashboard_payload(
             brand=brand,
             period=period,
             year=year,
@@ -561,82 +733,34 @@ def api_dashboard(
             customer=customer,
             region=region,
         )
-    )
+        execution_time = time.time() - start_time
 
+        # Store in specialized tables for future reconstruction
+        AnalyticsStorage.store_ui_analytics(db, dataset_ref, result)
 
-@app.get("/api/brands_share")
-def brands_share():
-    return JSONResponse(content=_bootstrap()["portfolio"]["brand_cards"])
+        # Also store in general cache
+        CacheService.set_cached_result(
+            db=db,
+            dataset_reference=dataset_name,
+            analytics_type="dashboard",
+            filters=dataset_filters,
+            result=result,
+            metrics={
+                "source": "api_computed",
+                "dataset_name": dataset_name,
+                "execution_time_ms": int(execution_time * 1000)
+            },
+            record_count=1,
+        )
 
-
-@app.get("/api/brand/{brand}")
-def brand_summary(brand: str, period: str | None = None):
-    return JSONResponse(content=generate_brand_summary(brand, period=period))
-
-
-@app.get("/api/month/{month}/brand/{brand}/channels")
-def month_brand_channels(month: str, brand: str):
-    return JSONResponse(content=generate_channel_summary(brand=brand, period=month)["channel_rows"])
-
-
-@app.get("/api/channel/{channel}/customers")
-def channel_customers(channel: str, brand: str | None = None, month: str | None = None):
-    return JSONResponse(content=generate_customer_summary(brand=brand, month=month, channel=channel)["customer_rows"])
-
-
-@app.get("/api/customer/{customer}/regions")
-def customer_regions(
-    customer: str,
-    brand: str | None = None,
-    month: str | None = None,
-    channel: str = "TEG",
-):
-    return JSONResponse(content=generate_region_summary(brand=brand, month=month, channel=channel, customer=customer)["region_rows"])
-
-
-@app.get("/api/region/{region}/drivers")
-def region_drivers(
-    region: str,
-    brand: str | None = None,
-    month: str | None = None,
-    channel: str = "TEG",
-    customer: str | None = None,
-):
-    return JSONResponse(content=generate_root_cause_analysis(brand=brand, month=month, channel=channel, customer=customer, region=region))
-
-
-@app.get("/api/root-cause")
-def root_cause(
-    region: str | None = None,
-    brand: str | None = None,
-    month: str | None = None,
-    channel: str = "TEG",
-    customer: str | None = None,
-):
-    return JSONResponse(content=generate_root_cause_analysis(brand=brand, month=month, channel=channel, customer=customer, region=region))
-
-
-@app.get("/api/chart-data")
-def chart_data(
-    level: str = "overview",
-    brand: str | None = None,
-    month: str | None = None,
-    channel: str = "TEG",
-    customer: str | None = None,
-    region: str | None = None,
-):
-    if level == "brand":
-        return JSONResponse(content=generate_brand_summary(brand))
-    if level == "channel":
-        return JSONResponse(content=generate_channel_summary(brand=brand, month=month))
-    if level == "customer":
-        return JSONResponse(content=generate_customer_summary(brand=brand, month=month, channel=channel))
-    if level == "region":
-        return JSONResponse(content=generate_region_summary(brand=brand, month=month, channel=channel, customer=customer))
-    if level == "root_cause":
-        return JSONResponse(content=generate_root_cause_analysis(brand=brand, month=month, channel=channel, customer=customer, region=region))
-    return JSONResponse(content=_bootstrap())
-
+        result["_metadata"] = {
+            "from_cache": False,
+            "dataset_name": dataset_name,
+            "execution_time_ms": int(execution_time * 1000),
+        }
+        return JSONResponse(content=result)
+    finally:
+        db.close()
 
 @app.post("/api/query")
 def query_prompt(
@@ -650,20 +774,238 @@ def query_prompt(
     region: str | None = Form(default=None),
     country: str | None = Form(default=None),
 ):
-    ask_mode = str(mode or "").strip().lower() == "ask"
-    return JSONResponse(
-        content=generate_executive_summary(
+    """
+    Query endpoint with response caching for Ask AI.
+    
+    Workflow:
+    1. Check query history for exact same query
+    2. If found & recent → return cached response
+    3. If not found → call AI model
+    4. Store query and response
+    5. Return result
+    """
+    from config.db import SessionLocal
+    from services.cache_service import CacheService
+    
+    db = SessionLocal()
+    try:
+        ask_mode = str(mode or "").strip().lower() == "ask"
+        dataset_name = _dataset_reference()
+        
+        # Combine filters for uniqueness
+        filters = {
+            "brand": brand,
+            "period": month,
+            "year": year,
+            "channel": channel,
+            "customer": customer,
+            "region": region,
+        }
+        dataset_ref = _get_unique_dataset_ref(dataset_name, filters)
+
+        # Normalize the input parameters based on their entity types
+        normalized_brand = normalize_entity_value(brand, "brand") if brand else None
+        normalized_region = normalize_entity_value(region, "region") if region else None
+        normalized_customer = normalize_entity_value(customer, "retailer_banner") if customer else None
+        normalized_country = normalize_entity_value(country, "country") if country else None
+
+        # Check if this query was asked before
+        existing_query = CacheService.get_query_history(
+            db=db,
+            dataset_reference=dataset_ref,
+            user_query=prompt,
+            limit_days=30,
+        )
+        
+        if existing_query:
+            # Return cached AI response
+            response = {
+                "summary": existing_query.ai_response,
+                "model": existing_query.model_name,
+                "execution_time_ms": 0,
+                "from_cache": True,
+                "cached_at": existing_query.created_at.isoformat(),
+            }
+            return JSONResponse(content=response)
+        
+        # Execute fresh query with normalized parameters
+        start_time = time.time()
+        result = generate_executive_summary(
             prompt=prompt,
-            brand=None if ask_mode else brand,
-            month=None if ask_mode else month,
-            year=None if ask_mode else year,
-            channel=None if ask_mode else channel,
-            customer=None if ask_mode else customer,
-            region=None if ask_mode else region,
-            country=None if ask_mode else country,
+            brand=normalized_brand,
+            month=month,
+            year=year,
+            channel=channel,
+            customer=normalized_customer,
+            region=normalized_region,
+            country=normalized_country,
             ask_mode=ask_mode,
         )
-    )
+        execution_time = int((time.time() - start_time) * 1000)
+        
+        # Extract AI response text
+        ai_response = result.get("summary", "")
+        
+        # Store in query history only if it's a valid response (not a technical error or high-demand message)
+        error_indicators = [
+            "ServiceUnavailableError", 
+            "GeminiException", 
+            "Unexpected error", 
+            "Unfortunately, I was not able to answer",
+            "The AI assistant is currently experiencing high demand"
+        ]
+        should_store = ai_response and not any(err in ai_response for err in error_indicators)
+        
+        if should_store:
+            CacheService.store_query_history(
+                db=db,
+                user_query=prompt,
+                ai_response=ai_response,
+                dataset_reference=dataset_ref,
+                model_name="gemini",
+                execution_time_ms=execution_time,
+                cached_response=False,
+            )
+        else:
+            print(f"[CACHE] Skipping storage for error/high-demand response: {ai_response[:100]}...")
+        
+        result["_metadata"] = {
+            "from_cache": False,
+            "execution_time_ms": execution_time,
+        }
+        
+        return JSONResponse(content=result)
+    
+    finally:
+        db.close()
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+import traceback
+
+
+@app.get("/invalidate-cache")
+@app.post("/invalidate-cache")
+async def invalidate_cache(
+    request: Request,
+    dataset_reference: str | None = None
+):
+    from config.db import SessionLocal
+    from services.cache_service import CacheService
+
+    try:
+
+        payload = {}
+
+        if request.headers.get("content-type", "").startswith("application/json"):
+            payload = await request.json()
+
+        dataset_reference = (
+            dataset_reference
+            or request.query_params.get("dataset_reference")
+            or payload.get("dataset_reference")
+        )
+
+        if not dataset_reference:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "dataset_reference missing",
+                    "query_params": dict(request.query_params),
+                    "payload": payload
+                }
+            )
+
+        db = SessionLocal()
+
+        try:
+            count = CacheService.invalidate_dataset_cache(
+                db,
+                dataset_reference
+            )
+
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "message": f"Invalidated {count} cache entries",
+                    "dataset_reference": dataset_reference
+                }
+            )
+
+        finally:
+            db.close()
+
+    except Exception as e:
+        print(traceback.format_exc())
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+        )
+
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+import traceback
+
+
+@app.get("/cache/stats", response_model=None)
+async def cache_stats(
+    request: Request,
+    dataset_reference: str | None = None
+):
+    from config.db import SessionLocal
+    from services.cache_service import CacheService
+
+    try:
+
+        payload = {}
+
+        if request.headers.get("content-type", "").startswith("application/json"):
+            payload = await request.json()
+
+        dataset_reference = (
+            dataset_reference
+            or request.query_params.get("dataset_reference")
+            or payload.get("dataset_reference")
+        )
+
+        if not dataset_reference:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "dataset_reference missing",
+                    "query_params": dict(request.query_params),
+                    "payload": payload
+                }
+            )
+
+        db = SessionLocal()
+
+        try:
+            stats = CacheService.get_cache_stats(
+                db,
+                dataset_reference
+            )
+
+            return JSONResponse(content=stats)
+
+        finally:
+            db.close()
+
+    except Exception as e:
+        print(traceback.format_exc())
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+        )
 
 
 if __name__ == "__main__":

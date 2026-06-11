@@ -29,10 +29,28 @@ function isBrandDetailPage() {
 
 document.addEventListener("DOMContentLoaded", init);
 
+document.addEventListener("DOMContentLoaded", init);
+
 function init() {
   cacheElements();
   syncStateFromUrl();
   const hasPersistedState = hydrateState();
+
+  // Clear any stale browser cache for filters
+  if (!hasPersistedState) {
+    // First visit: ensure clean state
+    const cache = getDashboardCache();
+    const keys = Object.keys(cache);
+    if (keys.length > 10) {
+      // Limit cache size to prevent stale entries
+      const sorted = keys.sort();
+      for (let i = 0; i < sorted.length - 5; i++) {
+        delete cache[sorted[i]];
+      }
+      writeStoredJson(STORAGE_KEYS.dashboard, cache);
+    }
+  }
+
   bindEvents();
   seedInitialDashboardCache(hasPersistedState);
   renderAll();
@@ -42,14 +60,14 @@ function init() {
 
 function syncStateFromUrl() {
   const urlParams = new URLSearchParams(window.location.search);
-  
+
   const urlBrand = urlParams.get("brand");
   const urlPeriod = urlParams.get("period");
   const urlYear = urlParams.get("year");
   const urlChannel = urlParams.get("channel");
   const urlCustomer = urlParams.get("customer");
   const urlRegion = urlParams.get("region");
-  
+
   if (urlBrand) state.brand = urlBrand;
   if (urlPeriod) state.period = urlPeriod;
   if (urlYear) state.year = urlYear;
@@ -92,6 +110,8 @@ function cacheElements() {
     "rootCauseReasons",
     "rootCauseDrivers",
     "rootCauseActions",
+    "monthChannelBreakdown",
+    "monthEmptyState",
   ].forEach((id) => {
     els[id] = document.getElementById(id);
   });
@@ -146,15 +166,13 @@ function writeStoredJson(key, value) {
 }
 
 function getDefaultYear() {
-  const currentYear = String(new Date().getFullYear());
-  const availableYears = (dashboardData.filters?.years || []).map((year) => String(year));
-  return availableYears.includes(currentYear) ? currentYear : availableYears[availableYears.length - 1] || currentYear;
+  return "ALL";
 }
 
 function normalizeState(nextState = {}) {
   const period = nextState.period === undefined || nextState.period === null ? "" : String(nextState.period);
-  const year = nextState.year === undefined || nextState.year === null || nextState.year === "" ? getDefaultYear() : String(nextState.year);
-  const brand = nextState.brand === undefined || nextState.brand === null ? "" : String(nextState.brand);
+  const year = nextState.year === undefined || nextState.year === null || nextState.year === "" ? "ALL" : String(nextState.year);
+  const brand = nextState.brand === undefined || nextState.brand === null || nextState.brand === "" ? "ALL" : String(nextState.brand);
   const channel = nextState.channel === undefined || nextState.channel === null || nextState.channel === "" ? "TEG" : String(nextState.channel);
   const customer = nextState.customer === undefined || nextState.customer === null ? "" : String(nextState.customer);
   const region = nextState.region === undefined || nextState.region === null ? "" : String(nextState.region);
@@ -331,16 +349,19 @@ function applyServerSelections(selections = {}) {
 }
 
 function bindEvents() {
-  els.brandSelect?.addEventListener("change", () => {
+  // Helper handlers to keep behavior consistent
+  const handleBrandChange = () => {
+    clearFilterCache();
     state.brand = els.brandSelect.value;
     state.customer = "";
     state.region = "";
     persistState();
     updateUrlParams();
     loadDashboard();
-  });
+  };
 
-  els.yearSelect?.addEventListener("change", () => {
+  const handleYearChange = () => {
+    clearFilterCache();
     state.year = els.yearSelect.value;
     state.period = "";
     state.customer = "";
@@ -348,20 +369,44 @@ function bindEvents() {
     persistState();
     updateUrlParams();
     loadDashboard();
-  });
+  };
 
-  els.periodSelect?.addEventListener("change", () => {
+  const handlePeriodChange = () => {
+    clearFilterCache();
     state.period = els.periodSelect.value;
     state.customer = "";
     state.region = "";
     persistState();
     updateUrlParams();
     loadDashboard();
+  };
+
+  // Brand select
+  els.brandSelect?.addEventListener("change", handleBrandChange);
+  els.brandSelect?.addEventListener("input", handleBrandChange);
+  els.brandSelect?.addEventListener("keyup", handleBrandChange);
+  els.brandSelect?.addEventListener("wheel", () => {
+    // Wheel may change the focused select value in some browsers — re-run the handler shortly after
+    setTimeout(handleBrandChange, 0);
   });
 
+  // Year select
+  els.yearSelect?.addEventListener("change", handleYearChange);
+  els.yearSelect?.addEventListener("input", handleYearChange);
+  els.yearSelect?.addEventListener("keyup", handleYearChange);
+  els.yearSelect?.addEventListener("wheel", () => setTimeout(handleYearChange, 0));
+
+  // Period select
+  els.periodSelect?.addEventListener("change", handlePeriodChange);
+  els.periodSelect?.addEventListener("input", handlePeriodChange);
+  els.periodSelect?.addEventListener("keyup", handlePeriodChange);
+  els.periodSelect?.addEventListener("wheel", () => setTimeout(handlePeriodChange, 0));
+
+  // Card clicks (month/customer/region)
   els.monthCards?.addEventListener("click", (event) => {
     const card = event.target.closest("[data-period]");
     if (!card) return;
+    clearFilterCache();
     state.period = card.dataset.period;
     state.customer = "";
     state.region = "";
@@ -373,6 +418,7 @@ function bindEvents() {
   els.customerCards?.addEventListener("click", (event) => {
     const card = event.target.closest("[data-customer]");
     if (!card) return;
+    clearFilterCache();
     state.customer = card.dataset.customer;
     state.region = "";
     persistState();
@@ -383,12 +429,14 @@ function bindEvents() {
   els.regionCards?.addEventListener("click", (event) => {
     const card = event.target.closest("[data-region]");
     if (!card) return;
+    clearFilterCache();
     state.region = card.dataset.region;
     persistState();
     updateUrlParams();
     loadDashboard();
   });
 
+  // NL form
   els.nlForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const prompt = els.nlInput?.value.trim() || buildDefaultPrompt();
@@ -401,12 +449,23 @@ function bindEvents() {
   els.nlInput?.addEventListener("input", () => {
     persistAskDraft(els.nlInput.value);
   });
-  
-  // Handle browser back/forward buttons
+
+  // Back/forward navigation
   window.addEventListener("popstate", () => {
     syncStateFromUrl();
+    clearFilterCache();
     loadDashboard();
   });
+}
+
+function clearFilterCache() {
+  const cache = getDashboardCache();
+  const key = getDashboardCacheKey(state);
+  if (cache && cache[key]) {
+    delete cache[key];
+    writeStoredJson(STORAGE_KEYS.dashboard, cache);
+    console.log("[CACHE] Cleared browser cache for", key);
+  }
 }
 
 function updateUrlParams() {
@@ -417,22 +476,13 @@ function updateUrlParams() {
   if (state.channel) appendParam(params, "channel", state.channel);
   if (state.customer) appendParam(params, "customer", state.customer);
   if (state.region) appendParam(params, "region", state.region);
-  
+
   const newUrl = `${window.location.pathname}${params.toString() ? "?" + params.toString() : ""}`;
   window.history.pushState({}, "", newUrl);
 }
 
 async function loadDashboard() {
   if (loading) return;
-
-  const cachedDashboard = getCachedDashboard(state);
-  if (cachedDashboard) {
-    dashboardData = cachedDashboard;
-    applyServerSelections(dashboardData.selections || {});
-    persistState();
-    renderAll();
-    return;
-  }
 
   loading = true;
   document.body.classList.add("loading");
@@ -446,14 +496,27 @@ async function loadDashboard() {
   appendParam(params, "region", state.region);
 
   try {
+    // Always request server-side payload so all browsers use DB if available
     const response = await fetch(`/api/dashboard?${params.toString()}`);
+    if (!response.ok) throw new Error(`Server returned ${response.status}`);
     dashboardData = await response.json();
     applyServerSelections(dashboardData.selections || {});
     persistState();
+    // Update local cache after fetching so subsequent same-browser loads can reuse it
     setCachedDashboard(dashboardData, state);
     renderAll();
   } catch (error) {
-    showAssistantMessage(`Dashboard data could not be refreshed.\n${error.message}`);
+    // If server fails, fall back to client cache (best-effort)
+    const cachedDashboard = getCachedDashboard(state);
+    if (cachedDashboard) {
+      dashboardData = cachedDashboard;
+      applyServerSelections(dashboardData.selections || {});
+      persistState();
+      renderAll();
+      showAssistantMessage(`Server unavailable, using local cache.`);
+    } else {
+      showAssistantMessage(`Dashboard data could not be refreshed.\n${error.message}`);
+    }
   } finally {
     loading = false;
     document.body.classList.remove("loading");
@@ -480,6 +543,7 @@ function renderAll() {
   renderCustomers();
   renderRegions();
   renderRootCause();
+  renderMonthBreakdown(); // Add this line
 }
 
 function renderFilters() {
@@ -487,27 +551,35 @@ function renderFilters() {
   const periods = filters.periods || [];
   const selectedYear = String(state.year || "");
   const lockedPage = isAskPage() || isBrandDetailPage();
+  // Prepend "All" options and deduplicate if server already provides them
+  const brandOptions = [
+    { value: "ALL", label: "All Brands" },
+    ...(filters.brands || [])
+      .filter(b => b.name !== "All Brands" && b.value !== "" && b.value !== "ALL")
+      .map((brand) => ({ value: brand.value ?? brand.name, label: brand.name }))
+  ];
 
-  setOptions(
-    els.brandSelect,
-    (filters.brands || []).map((brand) => ({ value: brand.value ?? brand.name, label: brand.name })),
-    state.brand
-  );
-
-  setOptions(
-    els.yearSelect,
-    (filters.years || []).map((year) => ({ value: year, label: year })),
-    state.year
-  );
-
+  const yearOptions = [
+    { value: "ALL", label: "All Years" },
+    ...(filters.years || [])
+      .filter(y => y !== "All Years" && y !== "ALL")
+      .map((year) => ({ value: year, label: year }))
+  ];
+  setOptions(els.brandSelect, brandOptions, state.brand);
+  setOptions(els.yearSelect, yearOptions, state.year);
   const monthOptions = periods
-    .filter((period) => !selectedYear || String(period.year) === selectedYear)
+    .filter((period) => !selectedYear || selectedYear === "ALL" || String(period.year) === selectedYear)
     .map((period) => ({ value: period.key, label: period.label }));
   setOptions(els.periodSelect, [{ value: "", label: "All Months" }, ...monthOptions], state.period);
 
+  // Disable selects on locked pages and preserve selected values
   [els.brandSelect, els.yearSelect, els.periodSelect].forEach((select) => {
     if (!select) return;
     select.disabled = lockedPage;
+    // Force value sync after DOM update
+    if (select === els.brandSelect) select.value = String(state.brand || "");
+    if (select === els.yearSelect) select.value = String(state.year || "");
+    if (select === els.periodSelect) select.value = String(state.period || "");
   });
 }
 
@@ -534,7 +606,7 @@ function renderHeader() {
   const periodLabel = getPeriodDisplayLabel();
   if (els.pageTitle) {
     if (pageKey === "ask") {
-      els.pageTitle.textContent = "Ask Gemini";
+      els.pageTitle.textContent = "Ask AI";
     } else if (pageKey === "brand-detail") {
       els.pageTitle.textContent = `${brandLabel} detail`;
     } else if (pageKey === "dashboard" || pageKey === "all") {
@@ -567,19 +639,19 @@ function renderKpis() {
   const periodLabel = getPeriodDisplayLabel();
   const cards = isAllBrand
     ? [
-        ["Market value share", formatPct(portfolio.brand_value_share_pct), brandLabel],
-        ["Market volume share", formatPct(portfolio.brand_volume_share_pct), periodLabel],
-        ["Growth", formatGrowth(portfolio.brand_growth_pct), "vs previous period"],
-        ["Market size", formatMoney(portfolio.market_size_value), "category sales value"],
-        ["Market rank", "-", "all brands view"],
-      ]
+      ["Market value share", formatPct(portfolio.brand_value_share_pct), brandLabel],
+      ["Market volume share", formatPct(portfolio.brand_volume_share_pct), periodLabel],
+      ["Growth", formatGrowth(portfolio.brand_growth_pct), "vs previous period"],
+      ["Market size", formatMoney(portfolio.market_size_value), "category sales value"],
+      ["Market rank", "-", "all brands view"],
+    ]
     : [
-        ["Brand value share", formatPct(portfolio.brand_value_share_pct), periodLabel],
-        ["Brand volume share", formatPct(portfolio.brand_volume_share_pct), brandLabel],
-        ["Growth", formatGrowth(portfolio.brand_growth_pct), "vs previous period"],
-        ["Market size", formatMoney(portfolio.market_size_value), "category sales value"],
-        ["Brand rank", portfolio.selected_brand_rank ? `#${portfolio.selected_brand_rank}` : "-", "within selected month"],
-      ];
+      ["Brand value share", formatPct(portfolio.brand_value_share_pct), periodLabel],
+      ["Brand volume share", formatPct(portfolio.brand_volume_share_pct), brandLabel],
+      ["Growth", formatGrowth(portfolio.brand_growth_pct), "vs previous period"],
+      ["Market size", formatMoney(portfolio.market_size_value), "category sales value"],
+      ["Brand rank", portfolio.selected_brand_rank ? `#${portfolio.selected_brand_rank}` : "-", "within selected month"],
+    ];
 
   if (!els.kpiGrid) return;
   els.kpiGrid.innerHTML = cards
@@ -701,20 +773,20 @@ function renderPath() {
 
 function renderChannelSwitcher() {
   if (!els.channelSwitcher) return;
-  
+
   const pageKey = String(document.body.dataset.page || "");
   const allowedPages = ["channels", "dashboard", "analysis", "customer", "regional", "root"];
   if (!allowedPages.includes(pageKey)) return;
-  
+
   const channels = dashboardData.filters?.channels || [];
   const currentChannel = state.channel || "TEG";
-  
+
   els.channelSwitcher.innerHTML = channels
     .map((channel) => {
       const channelKey = channel.key;
       const isActive = getChannelKey(channelKey) === getChannelKey(currentChannel);
       const href = buildChannelHrefWithState(channelKey);
-      
+
       return `
         <a class="header-pill channel-switch ${isActive ? "active" : ""}" 
            href="${escapeAttr(href)}" 
@@ -725,7 +797,7 @@ function renderChannelSwitcher() {
       `;
     })
     .join("");
-  
+
   els.channelSwitcher.querySelectorAll(".channel-switch").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
@@ -744,22 +816,22 @@ function renderChannelSwitcher() {
 
 function buildChannelHrefWithState(channel) {
   const params = new URLSearchParams();
-  
+
   if (state.brand) appendParam(params, "brand", state.brand);
   if (state.period) appendParam(params, "period", state.period);
   if (state.year) appendParam(params, "year", state.year);
   if (state.customer) appendParam(params, "customer", state.customer);
   if (state.region) appendParam(params, "region", state.region);
-  
+
   const queryString = params.toString();
   const channelKey = getChannelKey(channel);
-  
+
   let basePath;
-  if (channelKey === "PFM") basePath = "/analysis/pmf";
+  if (channelKey === "PFM") basePath = "/analysis/pfm";
   else if (channelKey === "L&T") basePath = "/analysis/lt";
   else if (channelKey === "HORECA") basePath = "/analysis/horeca";
   else basePath = "/analysis/channels/teg";
-  
+
   return queryString ? `${basePath}?${queryString}` : basePath;
 }
 
@@ -809,19 +881,26 @@ function renderChannels() {
   if (!els.channelCards) return;
   const channels = dashboardData.channels || [];
   const currentChannel = state.channel || "TEG";
-  
+  const periods = dashboardData.periods || [];
+
+  // If state.period is empty (All Months), use the latest period from recent trends
+  const activePeriodKey = state.period || (periods.length > 0 ? periods[periods.length - 1].key : "");
+  // Find the label for the active period to display
+  const activePeriod = periods.find(p => p.key === activePeriodKey) || (periods.length > 0 ? periods[periods.length - 1] : null);
+  const activePeriodLabel = activePeriod ? activePeriod.label : "All Months";
+
   els.channelCards.innerHTML = channels
     .map((channel) => {
       const channelKey = channel.key;
       const isActive = getChannelKey(channelKey) === getChannelKey(currentChannel);
       const hasData = hasChannelData(channel);
-      
+
       return `
         <button type="button" 
                 class="channel-tab ${isActive ? "active" : ""} ${hasData ? "" : "is-empty"}" 
                 data-channel="${escapeAttr(channelKey)}"
                 aria-pressed="${isActive}">
-          <span class="channel-label">${escapeHtml(channel.label)}</span>
+          <span class="focus-badge">${escapeHtml(activePeriodLabel)}</span>
           <strong>${hasData ? formatPct(channel.value_share) : "—"}</strong>
           <small>${escapeHtml(channel.title)}</small>
           <em>${hasData ? escapeHtml(channel.description) : "No mapped data in this workbook."}</em>
@@ -830,7 +909,7 @@ function renderChannels() {
       `;
     })
     .join("");
-  
+
   els.channelCards.querySelectorAll("[data-channel]").forEach((button) => {
     button.addEventListener("click", () => {
       const newChannel = button.dataset.channel;
@@ -915,16 +994,61 @@ function renderInsightList(target, rows, kind) {
   if (!target) return;
   target.innerHTML = rows.length
     ? rows
-        .map(
-          (row) => `
+      .map(
+        (row) => `
             <article class="insight ${kind}">
               <strong>${escapeHtml(row.label)}</strong>
               <small>${escapeHtml(row.detail || row.impact || "")}</small>
             </article>
           `
-        )
-        .join("")
+      )
+      .join("")
     : `<div class="empty-state">No items for this cut.</div>`;
+}
+
+function renderMonthBreakdown() {
+  if (!els.monthChannelBreakdown) return;
+
+  const channels = dashboardData.channels || [];
+  const hasData = channels.some(c => hasChannelData(c));
+  const periods = dashboardData.periods || [];
+
+  if (!hasData) {
+    if (els.monthEmptyState) els.monthEmptyState.style.display = "block";
+    els.monthChannelBreakdown.innerHTML = "";
+    return;
+  }
+
+  // If state.period is empty (All Months), use the latest period from dashboardData.periods if available
+  const activePeriodKey = state.period || (periods.length > 0 ? periods[periods.length - 1].key : "");
+  // Find the label for the active period
+  const activePeriod = periods.find(p => p.key === activePeriodKey) || (periods.length > 0 ? periods[periods.length - 1] : null);
+  const activePeriodLabel = activePeriod ? activePeriod.label : "All Months";
+
+  if (els.monthEmptyState) els.monthEmptyState.style.display = "none";
+
+  const brandLabel = getBrandLabel();
+
+  els.monthChannelBreakdown.innerHTML = channels
+    .map((channel) => {
+      const isNegative = Number(channel.growth) < 0;
+      return `
+        <article class="metric-card breakdown-card">
+          <div class="breakdown-head">
+            <span class="breakdown-label">${escapeHtml(channel.label)}</span>
+            <span class="breakdown-rank">${formatPct(channel.value_share)} share</span>
+          </div>
+          <div class="breakdown-body">
+            <strong>${formatGrowth(channel.growth)}</strong>
+            <small>Growth in ${escapeHtml(activePeriodLabel)}</small>
+          </div>
+          <div class="breakdown-footer">
+            <span>of ${escapeHtml(brandLabel)}</span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 async function submitPrompt(prompt) {
@@ -963,7 +1087,8 @@ async function submitPrompt(prompt) {
     persistAskDraft(prompt);
     persistAskResponse(prompt, message);
   } catch (error) {
-    showAssistantMessage(`AI summary could not be generated.\n${error.message}`);
+    showAssistantMessage(`The AI assistant is currently unavailable. Please check your connection or try again later.`);
+    console.error("AI Query Error:", error);
   }
 }
 
@@ -1055,7 +1180,7 @@ function formatAssistantResponse(json) {
     const answer = json.pandasai_answer || json.summary || "No answer was generated.";
     lines.push(answer);
     if (json.ai_status && !json.ai_status.gemini_configured) {
-      lines.push("", "Gemini key not configured, so the answer used workbook analytics only.");
+      lines.push("", "Note: AI analysis is currently running in basic mode using workbook data only.");
     }
     return lines.join("\n");
   }
@@ -1072,7 +1197,7 @@ function formatAssistantResponse(json) {
   );
   if (json.pandasai_answer) lines.push("", "AI assistant:", json.pandasai_answer);
   if (json.ai_status && !json.ai_status.gemini_configured) {
-    lines.push("", "Gemini key not configured, so this response uses deterministic workbook analytics.");
+    lines.push("", "Note: This response uses automated workbook analytics as the AI service is not yet configured.");
   }
   return lines.join("\n");
 }

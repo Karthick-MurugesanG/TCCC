@@ -14,6 +14,9 @@ import pandas as pd
 DEFAULT_CONFIG_NAME = "tccc_source.json"
 
 def _normalize_text(value: Any) -> str:
+    """Normalize text by removing special characters and converting to lowercase"""
+    if value is None or pd.isna(value):
+        return ""
     return re.sub(r"[^a-z0-9]+", "", str(value).strip().lower())
 
 
@@ -475,10 +478,6 @@ def _coerce_bool(value: Any) -> bool:
 
 def load_data_catalog(base_dir: Path, env: Mapping[str, str] | None = None) -> DataCatalog:
     spec, source_base_dir = _resolve_source_spec(base_dir, env)
-
-    # print("CONFIG FILE:", source_base_dir)
-    # print("EXCEL FILE:", spec.uri)
-    # print("SHEET NAME:", spec.sheet)
 
     raw_frame = load_dataframe(spec, source_base_dir)
     frame = _rename_frame_columns(raw_frame, spec)

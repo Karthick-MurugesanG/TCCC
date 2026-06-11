@@ -1,0 +1,40 @@
+{
+  "agent_configs": [
+    {
+      "agent": "Expert Selector",
+      "details": {
+        "model": "gemini-flash-latest",
+        "provider": "gemini",
+        "max_tokens": 2000,
+        "temperature": 0
+      }
+    },
+    {
+      "agent": "Analyst Selector",
+      "details": {
+        "model": "gemini-flash-latest",
+        "provider": "gemini",
+        "max_tokens": 2000,
+        "temperature": 0
+      }
+    },
+    {
+      "agent": "Analyst",
+      "details": {
+        "model": "gemini-flash-latest",
+        "provider": "gemini",
+        "max_tokens": 2000,
+        "temperature": 0
+      }
+    },
+    {
+      "agent": "Code Generator",
+      "details": {
+        "model": "gemini-flash-latest",
+        "provider": "gemini",
+        "max_tokens": 2000,
+        "temperature": 0
+      }
+    }
+  ]
+}

@@ -17,9 +17,12 @@
 
     <div class="header-actions">
       <nav class="header-nav" aria-label="Primary">
-        <a class="header-pill {{ 'active' if active_nav == 'dashboard' else '' }}" href="{{ request.url_for('page_dashboard') }}">Dashboard</a>
-        <a class="header-pill {{ 'active' if active_nav == 'brand' else '' }}" href="{{ request.url_for('page_brand_performance') }}">Brand Performance</a>
-        <a class="header-pill {{ 'active' if active_nav == 'month' else '' }}" href="{{ request.url_for('page_month_filter') }}">Month Filter</a>
+        <a class="header-pill {{ 'active' if active_nav == 'dashboard' else '' }}"
+          href="{{ request.url_for('page_dashboard') }}">Dashboard</a>
+        <a class="header-pill {{ 'active' if active_nav == 'brand' else '' }}"
+          href="{{ request.url_for('page_brand_performance') }}">Brand Performance</a>
+        <a class="header-pill {{ 'active' if active_nav == 'month' else '' }}"
+          href="{{ request.url_for('page_month_filter') }}">Month Filter</a>
         <details class="nav-dropdown {{ 'active' if analysis_active else '' }}">
           <summary class="header-pill">Analysis</summary>
           <div class="dropdown-menu">
@@ -28,8 +31,9 @@
             <a href="{{ request.url_for('page_channels') }}">Channels</a>
           </div>
         </details>
-        <a class="header-pill {{ 'active' if active_nav == 'root' else '' }}" href="{{ request.url_for('page_root_cause') }}">Root Cause</a>
-        <a class="header-pill {{ 'active' if ask_active else '' }}" href="{{ request.url_for('page_ask') }}">Ask Gemini</a>
+        <a class="header-pill {{ 'active' if active_nav == 'root' else '' }}"
+          href="{{ request.url_for('page_root_cause') }}">Root Cause</a>
+        <a class="header-pill {{ 'active' if ask_active else '' }}" href="{{ request.url_for('page_ask') }}">Ask AI</a>
       </nav>
     </div>
   </div>
@@ -39,17 +43,6 @@
   </div>
 
   <div class="header-filters" aria-label="Dashboard filters">
-    <div class="header-filter">
-      <label for="brandSelect">Brand</label>
-      <select id="brandSelect"></select>
-    </div>
-    <div class="header-filter">
-      <label for="yearSelect">Year</label>
-      <select id="yearSelect"></select>
-    </div>
-    <div class="header-filter">
-      <label for="periodSelect">Month</label>
-      <select id="periodSelect"></select>
-    </div>
+    {% include "partial_filters.html" %}
   </div>
 </header>

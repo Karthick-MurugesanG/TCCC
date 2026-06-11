@@ -45,6 +45,17 @@ body.sidebar-expanded {
   --sidebar-width: var(--sidebar-open);
 }
 
+.sidebar-filters {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.sidebar-filters .header-filter {
+  display: grid;
+  gap: 6px;
+}
+
 button,
 select,
 textarea {
@@ -296,7 +307,8 @@ body.sidebar-collapsed .brand-disc {
 }
 
 .ask-form textarea {
-  min-height: 210px;
+  min-height: 480px;
+  /* Increased from 210px */
   resize: vertical;
   border: 1px solid var(--line);
   background: #fff;
@@ -336,7 +348,8 @@ body.sidebar-collapsed .brand-disc {
 }
 
 .ask-answer {
-  min-height: 360px;
+  min-height: 600px;
+  /* Increased from 360px */
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #fffdfb;
@@ -403,25 +416,9 @@ body.sidebar-collapsed .brand-disc {
   padding: 4px 0 2px;
 }
 
-.page-header {
-  position: sticky;
-  top: 0;
-  z-index: 15;
-  padding: 14px 18px 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 48%),
-    linear-gradient(180deg, rgba(244, 0, 0, 0.98), rgba(184, 0, 0, 0.96));
-  color: white;
-  border-radius: 18px;
-  box-shadow: 0 18px 38px rgba(22, 22, 22, 0.16);
-  backdrop-filter: blur(14px);
-}
-
+/* --- HEADER BASE STYLES --- */
 .header-main {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: center;
+  min-width: 0;
 }
 
 .header-brand {
@@ -489,38 +486,7 @@ body.sidebar-collapsed .brand-disc {
   gap: 10px;
 }
 
-.header-channel-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 4px;
-  min-height: 40px;
-  overflow: hidden;
-}
-
-.header-channel-row.spacer {
-  visibility: hidden;
-}
-
-.header-channel-row.visible {
-  visibility: visible;
-}
-
-.header-nav {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.header-filters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  align-items: end;
-  margin-top: 2px;
-}
+/* Content moved to Master block at end of file */
 
 .header-filter {
   display: grid;
@@ -576,7 +542,7 @@ body.sidebar-collapsed .brand-disc {
 }
 
 .header-pill.active,
-.nav-dropdown.active > summary.header-pill {
+.nav-dropdown.active>summary.header-pill {
   background: white;
   color: var(--coke-red);
   border-color: white;
@@ -598,16 +564,10 @@ body.sidebar-collapsed .brand-disc {
   min-width: 92px;
 }
 
+/* Page Specific Layout Fixes */
+
+
 @media (min-width: 821px) {
-  .page-header {
-    min-height: 192px;
-  }
-
-  .header-main {
-    min-height: 78px;
-    align-items: flex-start;
-  }
-
   .header-actions {
     align-self: stretch;
   }
@@ -637,7 +597,9 @@ body.sidebar-collapsed .brand-disc {
   }
 
   .header-filters {
-    min-height: 54px;
+    display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 }
 
@@ -695,15 +657,15 @@ body.sidebar-collapsed .brand-disc {
   z-index: 40;
 }
 
-.nav-dropdown > summary {
+.nav-dropdown>summary {
   list-style: none;
 }
 
-.nav-dropdown > summary::-webkit-details-marker {
+.nav-dropdown>summary::-webkit-details-marker {
   display: none;
 }
 
-.nav-dropdown > summary {
+.nav-dropdown>summary {
   cursor: pointer;
 }
 
@@ -1103,6 +1065,72 @@ body.sidebar-collapsed .brand-disc {
   box-shadow: none;
 }
 
+.month-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.breakdown-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 12px;
+  transition: transform 140ms ease;
+}
+
+.breakdown-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--coke-red);
+}
+
+.breakdown-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--soft-gray);
+  padding-bottom: 6px;
+}
+
+.breakdown-label {
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.breakdown-rank {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.breakdown-body {
+  display: grid;
+  gap: 2px;
+}
+
+.breakdown-body strong {
+  font-size: 1.2rem;
+  line-height: 1.1;
+  color: var(--coke-red-dark);
+}
+
+.breakdown-body small {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.breakdown-footer {
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.8;
+  font-style: italic;
+}
+
 .root-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1192,127 +1220,223 @@ body.loading .dashboard {
   pointer-events: none;
 }
 
-@media (max-width: 1220px) {
+/* --- FINAL MASTER HEADER & MOBILE FIX --- */
+
+/* 1. Force the whole page to scroll naturally */
+html,
+body,
+.app-shell,
+main.dashboard {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+}
+
+
+/* 2. Page Container Fix: Prevent header stretching */
+main.dashboard {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  padding: 22px !important;
+  gap: 18px !important;
+}
+
+
+/* 3. Consolidated Header */
+.topbar.page-header {
+  position: relative !important;
+  top: auto !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  display: block !important;
+  padding: 10px 18px 12px !important;
+  /* Slightly more bottom padding for balance */
+  margin-bottom: 0px !important;
+  /* Gap controlled by parent flex */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 48%),
+    linear-gradient(180deg, rgba(244, 0, 0, 0.98), rgba(184, 0, 0, 0.96));
+  border-radius: 18px;
+  flex: 0 0 auto !important;
+  /* CRITICAL: Prevent stretching */
+}
+
+/* Fix for overlapping titles */
+.page-heading h2 {
+  max-height: 1.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-main {
+  height: auto !important;
+  display: grid !important;
+  grid-template-columns: auto 1fr auto !important;
+  align-items: center !important;
+  gap: 18px !important;
+  min-height: 52px;
+}
+
+.header-nav {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-channel-row.spacer {
+  display: none !important;
+}
+
+.header-filters {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  height: auto !important;
+  margin-top: 8px !important;
+}
+
+.page-brand-detail .ask-layout {
+  display: block !important; /* This turns off the grid completely */
+  width: 100% !important;
+}
+.page-brand-detail .ask-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* 3. MOBILE: Horizontal scrolling navigation and Grid adjustments */
+@media (max-width: 820px) {
   .app-shell {
-    flex-direction: column;
+    display: block;
+    /* Stack sidebar (if visible) and main */
+  }
+
+  /* Reclaim space from sidebar on mobile */
+  .brand-rail {
+    display: none !important;
   }
 
   .header-main {
-    grid-template-columns: 1fr;
+    flex-direction: column !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
   }
 
-  .header-actions {
+  .header-brand,
+  .page-heading {
+    text-align: center;
     width: 100%;
-    justify-items: start;
+    margin-bottom: 4px;
   }
 
   .header-nav {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    /* Allow wrapping instead of clipping */
+    justify-content: center !important;
     width: 100%;
-    justify-content: flex-start;
+    padding: 10px 0;
+    gap: 10px !important;
+    overflow: visible !important;
   }
 
-  .header-filters {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .channel-hero-body {
-    grid-template-columns: 1fr;
-  }
-
-  .channel-metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .brand-rail {
+  /* Fix dropdown clipping in mobile */
+  .nav-dropdown {
     position: relative;
-    min-height: auto;
-    width: 100% !important;
-    max-width: 100% !important;
+    width: auto;
   }
 
-  body.sidebar-collapsed .brand-rail {
-    padding: 22px;
-    gap: 18px;
+  .dropdown-menu {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 240px;
+    top: calc(100% + 4px);
+    z-index: 200;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    background: white !important;
   }
 
-  body.sidebar-collapsed .brand-rail-top {
-    flex-direction: row;
-    align-items: flex-start;
-  }
-
-  body.sidebar-collapsed .brand-lockup {
-    justify-content: flex-start;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.22);
-  }
-
-  body.sidebar-collapsed .brand-lockup-copy,
-  body.sidebar-collapsed .rail-group,
-  body.sidebar-collapsed .rail-grid,
-  body.sidebar-collapsed .rail-section {
-    display: block;
-  }
-
-  .kpi-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .ask-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .channel-tabs,
-  .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 820px) {
-  .dashboard,
-  .brand-rail {
-    padding: 14px;
-  }
-
-  .brand-rail {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  .header-main,
   .header-filters {
-    grid-template-columns: 1fr;
-  }
-
-  .header-actions {
+    grid-template-columns: 1fr !important;
     width: 100%;
-    justify-items: start;
   }
 
-  .header-nav {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .section-head,
-  .data-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
+  /* Grid Layouts for Mobile */
   .kpi-grid,
-  .analysis-grid,
-  .analysis-launcher,
-  .ask-layout,
-  .detail-grid,
-  .brand-grid,
-  .month-grid,
-  .channel-tabs,
   .metric-grid,
-  .root-grid {
-    grid-template-columns: 1fr;
+  .month-grid,
+  .month-breakdown-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .analysis-launcher,
+  .channel-tabs,
+  .root-grid,
+  .analysis-grid,
+  .detail-grid,
+  .ask-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Sidebar/Mobile specific styles */
+  .channel-hero-body {
+    grid-template-columns: 1fr !important;
   }
 
   .channel-metric-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .ask-form textarea {
+    min-height: 300px;
+  }
+
+  .ask-answer {
+    min-height: 400px;
+  }
+
+  .page-header {
+    margin-bottom: 12px !important;
+  }
+
+  /* Typography and spacing polish for Mobile */
+  .page-heading h2 {
+    font-size: 1.4rem !important;
+  }
+
+  .kpi-card strong,
+  .metric-card strong {
+    font-size: 1.15rem !important;
+  }
+
+  .brand-disc {
+    width: 48px !important;
+    height: 48px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .header-brand-copy h1 {
+    font-size: 0.9rem !important;
+  }
+
+  .dashboard {
+    padding: 14px !important;
+    gap: 14px !important;
+  }
+
+  .surface {
+    padding: 12px !important;
+  }
+
+  .header-pill {
+    padding: 7px 11px !important;
+    font-size: 0.74rem !important;
   }
 }

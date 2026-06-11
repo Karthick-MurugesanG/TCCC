@@ -1,30 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
-  <section class="analysis-grid">
-    <div class="surface">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Month filter</p>
-          <h3 id="trendTitle">Monthly trend</h3>
-        </div>
-        <span class="badge">Dynamic workbook data</span>
+<section class="analysis-grid">
+  <div class="surface">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Month filter</p>
+        <h3 id="trendTitle">Monthly trend</h3>
       </div>
-      <div id="monthCards" class="month-grid"></div>
-      <div id="monthTrend" class="trend-box"></div>
-      <div id="monthLegend" class="legend"></div>
+      <span class="badge">Dynamic workbook data</span>
     </div>
+    <div id="monthCards" class="month-grid"></div>
+    <div id="monthTrend" class="trend-box"></div>
+    <div id="monthLegend" class="legend"></div>
+  </div>
 
-    <div class="surface">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Month selector</p>
-          <h3>Latest period focus</h3>
-        </div>
-        <span id="periodBadge" class="badge"></span>
+  <div class="surface">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Month selector</p>
+        <h3>Latest period focus</h3>
       </div>
-      <div class="empty-state">
-        Use the month dropdown in the header to move the trend view across the workbook periods.
-      </div>
+      <span id="periodBadge" class="badge"></span>
     </div>
-  </section>
+    <div id="monthChannelBreakdown" class="month-breakdown-grid"></div>
+      <div class="empty-state" id="monthEmptyState">
+        Use the month cards on the left to see the channel breakdown for a specific period.
+      </div>
+  </div>
+</section>
 {% endblock %}

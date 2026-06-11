@@ -31,7 +31,7 @@ CHANNEL_DEFINITIONS = [
     },
     {
         "key": "PFM",
-        "label": "PMF",
+        "label": "PFM",
         "title": "Personal Finance Management",
         "description": "Digital tooling used to track, understand, and optimize spending behavior.",
     },
@@ -490,7 +490,11 @@ def _gemini_answer_prompt(prompt: str) -> str:
         "- Column 'Region' values are Title Case (e.g., 'Eastern Cape').",
         "- Column 'Customer' (Retailer Banner) values: 'OK' and 'PnP' are case-sensitive, others are Title Case.",
         "- Column 'Country' value is 'South Africa'.",
+<<<<<<< HEAD
         "Ignore the dashboard header filters and do not widen the answer to all brands unless the question explicitly asks for the full market.",
+=======
+        "Ignore the dashboard header filters",
+>>>>>>> 592c21d (Updated UI and header feild)
         "If the question names a specific brand, focus only on that brand.",
         "Do not mention the UI filters unless the user asks about them.",
         f"Question: {prompt}",
@@ -543,14 +547,22 @@ def _ask_with_gemini(prompt: str) -> tuple[str, dict[str, Any]]:
     if not keys:
         print(f"[ASK_GEMINI] ✗ No API keys configured")
         return (
+<<<<<<< HEAD
             "No Gemini API keys found. Please set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.",
+=======
+            "The AI assistant is not yet configured with an API key. Please contact your administrator.",
+>>>>>>> 592c21d (Updated UI and header feild)
             status,
         )
     
     if not PANDASAI_AVAILABLE:
         print(f"[ASK_GEMINI] ✗ PandasAI not available")
         return (
+<<<<<<< HEAD
             "PandasAI is not installed. Please install: pip install pandasai pandasai-litellm",
+=======
+            "The AI analysis service is currently unavailable. Please check the system installation.",
+>>>>>>> 592c21d (Updated UI and header feild)
             status,
         )
 
@@ -569,6 +581,12 @@ def _ask_with_gemini(prompt: str) -> tuple[str, dict[str, Any]]:
             answer = str(sdf.chat(query)).strip()
             if not answer:
                 raise ValueError("Gemini returned an empty response.")
+            
+            # Detect if PandasAI returned a technical error string instead of raising an exception
+            tech_errors = ["ServiceUnavailableError", "GeminiException", "Unexpected error", "Unfortunately, I was not able to answer"]
+            if any(err in answer for err in tech_errors):
+                raise RuntimeError(f"Technical error in AI response: {answer[:100]}...")
+
         except Exception as exc:
             errors.append(f"Key {slot + 1}: {exc}")
             continue
@@ -581,9 +599,8 @@ def _ask_with_gemini(prompt: str) -> tuple[str, dict[str, Any]]:
         return answer, status
 
     _gemini_rotation_set(0, len(keys))
-    last_error = errors[-1] if errors else "Unknown error."
     return (
-        f"Gemini could not complete this prompt after trying all configured keys. Last error: {last_error}",
+        "The AI assistant is currently experiencing high demand or connectivity issues. Please try your request again in a few moments.",
         status,
     )
 
@@ -636,7 +653,7 @@ def _default_year() -> Any:
 def _default_period(year: Any | None = None) -> str:
     periods = _period_options()
     selected_year = year if year is not None else _default_year()
-    if selected_year is not None:
+    if selected_year is not None and str(selected_year).upper() != "ALL":
         filtered = [period for period in periods if str(period["year"]) == str(selected_year)]
         if filtered:
             return filtered[-1]["key"]
@@ -816,7 +833,7 @@ def _normalize_period(period: str | None, year: Any | None = None) -> str:
     available = {item["key"] for item in _period_options()}
     selected_year = year if year is not None else _default_year()
     if period in available:
-        if year:
+        if year and str(year).upper() != "ALL":
             selected = next((item for item in _period_options() if item["key"] == period), None)
             if selected and str(selected["year"]) != str(year):
                 return _default_period(year)
@@ -954,7 +971,8 @@ def _portfolio_overview(period: str, brand: str) -> dict[str, Any]:
 
 
 def _period_trend(brand: str, year: Any | None = None) -> list[dict[str, Any]]:
-    periods = [item for item in _period_options() if not year or str(item["year"]) == str(year)]
+    is_all_year = not year or str(year).upper() == "ALL"
+    periods = [item for item in _period_options() if is_all_year or str(item["year"]) == str(year)]
     rows = []
     for item in periods:
         period = item["key"]
@@ -1314,6 +1332,66 @@ def generate_brand_summary(brand: str | None = None, period: str | None = None) 
         **portfolio,
     }
 
+def generate_brand_performance_pandas(
+    brand: str | None = None,
+    month: str | None = None,
+    year: str | None = None,
+    channel: str | None = None,
+    customer: str | None = None,
+    region: str | None = None,
+    country: str | None = None
+) -> dict[str, Any]:
+    """
+    Calculates brand performance metrics using deterministic Pandas logic only.
+    No AI or LLM is called here.
+    """
+    # 1. Get the raw data payload using existing Pandas service
+    payload = build_dashboard_payload(
+        brand=brand, period=month, year=year, 
+        channel=channel, customer=customer, region=region
+    )
+    
+    selections = payload["selections"]
+    root = payload["root_cause"]
+    
+    # 2. Identify strongest/weakest channels via growth metrics (Pandas)
+    strongest_dragger = min(payload["channels"], key=lambda row: row["growth"]) if payload["channels"] else None
+    strongest_driver = max(payload["channels"], key=lambda row: row["growth"]) if payload["channels"] else None
+    
+    brand_subject = selections.get("brand_label", brand or "Brand")
+    channel_label = selections.get("channel_label", selections.get("channel", "Selected Channel"))
+    
+    # 3. Build a deterministic summary string
+    summary = (
+        f"{brand_subject} is at {payload['portfolio']['brand_value_share_pct']:.2f}% value share and "
+        f"{payload['portfolio']['brand_volume_share_pct']:.2f}% volume share. "
+        f"The current focus is {channel_label}."
+    )
+
+    draggers = []
+    drivers = []
+    
+    # Extract draggers/drivers from the Pandas calculation
+    if strongest_dragger:
+        draggers.append(f"{strongest_dragger['label']} exhibits the lowest growth ({strongest_dragger['growth']:.2f}%).")
+    if root:
+        draggers.extend([item["label"] for item in root.get("reasons", [])[:3]])
+
+    if strongest_driver:
+        drivers.append(f"{strongest_driver['label']} exhibits the highest growth ({strongest_driver['growth']:.2f}%).")
+    if root:
+        drivers.extend([item["label"] for item in root.get("drivers", [])[:2]])
+
+    return {
+        "summary": summary,
+        "draggers": draggers,
+        "drivers": drivers,
+        "actions": root.get("actions", []) if root else [],
+        "root_cause": root.get("summary") if root else "",
+        "pandasai_answer": None, # Explicitly disabled
+        "ai_status": {"pandasai_available": False, "gemini_configured": False}
+    }
+
 
 def generate_channel_summary(brand: str | None = None, month: str | None = None, period: str | None = None) -> dict[str, Any]:
     payload = build_dashboard_payload(brand=brand, period=period or month)
@@ -1385,8 +1463,9 @@ def generate_executive_summary(
             f"Rules:\n"
             f"1. Filter matching must be case-insensitive.\n"
             f"2. Ignore capitalization differences in brand, region, retailer, and country values.\n"
-            f"3. If the prompt contains 'South Africa', always treat it as a COUNTRY value, never as a REGION value.\n"
-            f"4. Apply inferred filters only when they are relevant to the user's question.\n"
+            f"3. Perform case-insensitive and format-insensitive matching. Additionally, apply fuzzy matching for minor spelling variations, treating words with differences in hyphens, spaces, or small character changes as equivalent (e.g., “coca-cola”, “coca cola”, “cocacola” → same entity).\n"
+            f"4. If the prompt contains 'South Africa', always treat it as a COUNTRY value, never as a REGION value.\n"
+            f"5. Apply inferred filters only when they are relevant to the user's question.\n"
         )
         ai_answer, ai_status = _ask_with_gemini(contextual_prompt)
         return {
